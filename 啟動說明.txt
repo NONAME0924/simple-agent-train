@@ -1,0 +1,21 @@
+AI Agent 啟動說明
+
+1. 複製 .env.example 為 .env，設定 OLLAMA_BASE_URL 與 DEFAULT_MODEL。
+2. Linux／macOS：具備 Python 3.10+、venv／ensurepip 後執行 sh run.sh --no-browser。
+   首次安裝與依賴更新需要網路；之後使用專案虛擬環境。
+3. Windows 發行包：若含 runtime，雙擊 AI-Agent.exe。
+   Windows 原始碼：依 README.md 建立 .venv、安裝 requirements.lock.txt，再執行 launcher.py。
+4. 預設介面為 http://127.0.0.1:8000；可用 --port 8001 更換連接埠。
+5. 更新後重啟服務並重新整理瀏覽器；關閉執行視窗或按 Ctrl+C 停止。
+
+中文首頁：README.md
+English: README.en.md
+架構：docs/architecture.md／docs/architecture.en.md
+詳細用法：docs/usage.md
+Blender：docs/blender-mcp.md
+本機設定與公開範圍：docs/publishing.md
+技能來源與授權：docs/third-party.md
+
+.env、mcp.json、skills 內容、資料庫、作品與 Log 不提交 Git。
+GitHub 原始碼不含本機技能與執行環境；請自行準備所需技能及其依賴。
+現有執行壓縮檔仍可包含本機 Skills，並不等同可直接公開的原始碼包。

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 工作台</title>
+  <script src="/static/js/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <button id="navigation-backdrop" class="navigation-backdrop" aria-label="關閉對話列表" tabindex="-1"></button>
+  <aside id="sidebar" class="navigation" aria-label="專案與對話">
+    <div class="navigation-header">
+      <span class="brand">Agent 工作台</span>
+      <button id="btn-new-chat" class="new-chat">新增對話</button>
+      <button id="btn-new-project" class="text-button">新增專案</button>
+    </div>
+    <nav id="session-list" class="session-list" aria-label="對話列表"></nav>
+    <div class="navigation-footer">Ollama</div>
+  </aside>
+
+  <div id="main-column" class="main-column">
+    <header class="topbar">
+      <button id="toggle-sidebar" class="icon-button" aria-label="展開或收合對話列表" aria-controls="sidebar" aria-expanded="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h1 id="current-chat-title">新對話</h1>
+      <button id="btn-toggle-workspace" class="text-button panel-toggle" aria-controls="workspace-drawer" aria-expanded="false">專案面板</button>
+      <button id="theme-toggle" class="text-button" onclick="toggleTheme()" aria-label="切換顯示模式">暗色</button>
+    </header>
+    <main id="chat-container" class="chat-container" aria-label="聊天內容">
+      <div id="welcome-card" class="welcome">
+        <h2>從一個想法開始</h2>
+        <p>輸入需求，或加入文件一起討論。</p>
+      </div>
+    </main>
+
+    <footer class="composer-footer">
+      <div class="composer-wrap">
+        <div id="attachment-list" class="attachment-list" aria-live="polite" hidden></div>
+        <div id="document-drop" class="composer">
+          <input id="document-files" type="file" multiple hidden>
+          <button id="attach-button" class="icon-button attach-button" aria-label="加入圖片或文件" title="圖片：PNG／JPEG／WebP，每張 10 MiB、每則四張；文件每檔 25 MiB">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <textarea id="user-input" rows="1" placeholder="輸入訊息…" aria-label="訊息"></textarea>
+          <button id="send-btn" class="primary-button">送出</button>
+        </div>
+        <div class="composer-toolbar">
+          <select id="chat-mode" aria-label="處理模式" onchange="updateMode(true)">
+            <option value="auto">預設</option>
+            <option value="plan">規劃</option>
+          </select>
+          <label class="reasoning-control" title="低：快速處理；中：適度分析；高：深入評估。選擇對下一次送出生效。">思考
+            <select id="reasoning-level" aria-label="思考程度">
+              <option value="low">低</option>
+              <option value="medium" selected>中</option>
+              <option value="high">高</option>
+            </select>
+          </label>
+          <span id="run-status" role="status"></span>
+          <button id="pause-btn" class="text-button hidden" title="目前工具完成後暫停；背景程序會繼續執行">暫停</button>
+          <button id="background-status" class="text-button hidden" onclick="openProjectPanel('execution')"></button>
+        </div>
+        <p id="runtime-error" class="runtime-error" role="status" aria-live="polite"></p>
+      </div>
+    </footer>
+  </div>
+
+  <button id="panel-backdrop" class="panel-backdrop" aria-label="關閉專案面板" tabindex="-1" hidden></button>
+  <aside id="workspace-drawer" class="project-panel" aria-label="專案面板" hidden>
+    <div class="panel-header">
+      <h2>專案面板</h2>
+      <button id="btn-close-workspace" class="icon-button" aria-label="關閉專案面板">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
+      </button>
+    </div>
+    <div class="panel-tabs" role="tablist" aria-label="專案內容">
+      <button id="tab-files" role="tab" aria-controls="panel-files" aria-selected="true" data-panel="files">檔案</button>
+      <button id="tab-memory" role="tab" aria-controls="panel-memory" aria-selected="false" data-panel="memory" tabindex="-1">記憶</button>
+      <button id="tab-plan" role="tab" aria-controls="panel-plan" aria-selected="false" data-panel="plan" tabindex="-1">規劃</button>
+      <button id="tab-execution" role="tab" aria-controls="panel-execution" aria-selected="false" data-panel="execution" tabindex="-1">執行</button>
+      <button id="tab-logs" role="tab" aria-controls="panel-logs" aria-selected="false" data-panel="logs" tabindex="-1">Log</button>
+      <button id="tab-skills" role="tab" aria-controls="panel-skills" aria-selected="false" data-panel="skills" tabindex="-1">Skill</button>
+      <button id="tab-mcp" role="tab" aria-controls="panel-mcp" aria-selected="false" data-panel="mcp" tabindex="-1">MCP</button>
+    </div>
+    <div id="runtime-panel" class="panel-body">
+      <section id="panel-files" role="tabpanel" aria-labelledby="tab-files">
+        <div class="section-heading">
+          <h3>工作區 <span id="workspace-file-badge">0</span></h3>
+          <div class="button-row">
+            <button id="btn-view-map" class="text-button">程式地圖</button>
+            <button id="btn-refresh-workspace" class="text-button">重新整理</button>
+          </div>
+        </div>
+        <form id="code-search-form" class="search-form">
+          <div class="button-row">
+            <input id="code-search-query" placeholder="搜尋程式或文件" aria-label="搜尋程式或文件" maxlength="200">
+            <button class="secondary-button">搜尋</button>
+          </div>
+          <div class="button-row">
+            <input id="code-search-pattern" placeholder="檔案範圍，例如 *.py" aria-label="搜尋檔案範圍">
+            <button type="button" onclick="clearCodeSearch()" class="text-button">重設</button>
+          </div>
+          <div id="code-search-results" class="search-results hidden" aria-live="polite"></div>
+        </form>
+        <div id="workspace-files-container" class="file-list"></div>
+        <details id="documents-panel" class="panel-section">
+          <summary>附件匯入紀錄</summary>
+          <div id="document-results" class="document-results"></div>
+          <p class="help-text">從輸入框左側「＋」選擇文件，或拖曳到輸入框。圖片每張 10 MiB、每則四張，支援 PNG、JPEG、WebP，也可直接貼上截圖；文件每檔 25 MiB，僅擷取文字。</p>
+          <p class="help-text">支援 PDF、DOCX、PPTX、XLSX、XLS、ODF、EPUB、RTF、HTML 與純文字。舊 DOC／PPT 請另存 DOCX／PPTX。</p>
+        </details>
+      </section>
+      <section id="panel-memory" role="tabpanel" aria-labelledby="tab-memory" hidden>
+        <h3>專案記憶</h3>
+        <p class="help-text">同專案對話共用的摘要與固定內容。</p>
+        <pre id="project-memory-text" class="panel-pre"></pre>
+        <div class="button-row">
+          <button id="memory-edit" class="text-button">編輯</button>
+          <button id="memory-sources" class="text-button">來源</button>
+          <button id="memory-clear" class="text-button danger">清空自動摘要</button>
+        </div>
+        <div id="memory-editor" class="memory-editor hidden">
+          <label>專案摘要<textarea id="memory-summary-input" rows="6" maxlength="12000"></textarea></label>
+          <label>固定記憶<textarea id="memory-pinned-input" rows="4" maxlength="8000"></textarea></label>
+          <p class="help-text">固定記憶只由你修改，自動摘要不會覆寫。</p>
+          <div class="button-row"><button id="memory-save" class="primary-button">儲存</button><button id="memory-cancel" class="text-button">取消</button></div>
+        </div>
+        <div id="memory-source-list"></div>
+      </section>
+      <section id="panel-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+        <h3>規劃與任務</h3>
+        <div class="button-row spec-links">
+          <button class="text-button" onclick="previewFile('.specify/spec.md')">需求規格</button>
+          <button class="text-button" onclick="previewFile('.specify/plan.md')">技術方案</button>
+          <button class="text-button" onclick="previewFile('.specify/tasks.md')">任務文件</button>
+        </div>
+        <button id="implement-plan" class="secondary-button hidden" onclick="implementPlan()">開始實作</button>
+        <div id="tasks-panel" class="panel-section">
+          <h4 id="tasks-count">尚未載入</h4>
+          <div id="tasks-list"></div>
+        </div>
+      </section>
+      <section id="panel-skills" role="tabpanel" aria-labelledby="tab-skills" hidden>
+        <div class="section-heading"><h3>全域 Skill 總表</h3><button id="skills-refresh" class="text-button">重新整理</button></div>
+        <p class="help-text">在對話貼上網站並要求安裝，Agent 會讀取安裝說明、找出來源並全域安裝。所有專案共用。</p>
+        <p id="skills-status" class="help-text" role="status"></p>
+        <div id="skills-list"></div>
+      </section>
+      <section id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden>
+        <div class="section-heading"><h3>外部工具</h3><button id="mcp-refresh" class="text-button">重新整理</button></div>
+        <p class="help-text">預設 Blender。先在 Blender 安裝並啟用插件，再按側欄的「Start MCP Server」，然後在這裡連線。</p>
+        <a class="text-button" href="/api/mcp/blender/addon" download>下載 Blender 插件</a>
+        <p id="mcp-status" class="help-text" role="status"></p>
+        <div id="mcp-list"></div>
+        <p class="help-text">連線綁定目前專案；一般對話各自綁定。同一實例同時供一個任務使用。沒有定時輪詢；修改 mcp.json 後請中斷再重新連線，修改 .env 後請重啟 Agent。</p>
+        <details class="panel-section"><summary>Agent 與 Blender 在不同電腦？</summary><p class="help-text">Blender 位址由 Agent 後端連線。Agent 在遠端時，127.0.0.1 指遠端主機；請先建立連到 Blender 電腦的 SSH 連接埠轉送，再使用對應的 BLENDER_HOST／BLENDER_PORT。</p></details>
+      </section>
+      <section id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" hidden>
+        <div class="section-heading"><h3>執行日誌</h3><button id="logs-refresh" class="text-button">重新整理</button></div>
+        <div class="button-row log-filters">
+          <select id="logs-scope" aria-label="日誌範圍"><option value="current">目前專案／對話</option><option value="session">只看此對話</option><option value="system">系統</option></select>
+          <select id="logs-level" aria-label="日誌等級"><option value="ALL">全部等級</option><option value="INFO">INFO</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option></select>
+          <select id="logs-category" aria-label="日誌類別"><option value="ALL">全部類別</option><option value="system">系統</option><option value="model">模型</option><option value="tool">工具</option><option value="mcp">MCP 連線</option><option value="memory">記憶與上下文</option></select>
+        </div>
+        <p id="logs-status" class="help-text" role="status"></p>
+        <a id="logs-download" class="text-button" download>下載來源整檔（未篩選）</a>
+        <p class="help-text">最新 100 筆符合紀錄，依時間由新到舊。展開查看參數、結果與錯誤；只在開啟、切換篩選或手動更新時讀取。</p>
+        <div id="logs-list"></div>
+      </section>
+      <section id="panel-execution" role="tabpanel" aria-labelledby="tab-execution" hidden>
+        <div class="section-heading"><h3>背景工作</h3><button class="text-button" onclick="refreshRuntimePanel(true)">重新整理</button></div>
+        <p id="job-count" class="help-text">尚無工作</p>
+        <div id="job-list"></div>
+        <details class="panel-section">
+          <summary>對話資訊</summary>
+          <p id="context-usage" class="help-text">上下文用量會在執行時更新。</p>
+          <p id="mode-hint" class="help-text"></p>
+          <p class="info-row">Session <code id="display-session-id"></code></p>
+          <p class="info-row">工作區 <span id="workspace-path"></span></p>
+          <label class="project-select-label">對話所屬專案<select id="session-project" onchange="moveCurrentSession(this.value)"><option value="">一般對話</option></select></label>
+        </details>
+      </section>
+    </div>
+  </aside>
+
+  <div id="file-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-file-title">
+    <div class="modal-sheet file-sheet">
+      <div class="modal-header">
+        <h2 id="modal-file-title">檔案</h2><span id="modal-file-lines" class="help-text"></span>
+        <button id="file-preview-toggle" class="text-button" onclick="toggleFilePreview()" aria-pressed="false" hidden>原始碼</button>
+        <button class="text-button" onclick="closeFileModal()">關閉</button>
+      </div>
+      <div id="file-source-view" class="file-preview"><pre><code id="modal-file-content"></code></pre></div>
+      <article id="file-markdown-view" class="markdown-preview prose" hidden></article>
+    </div>
+  </div>
+  <div id="map-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="map-title">
+    <div id="map-panel" class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="map-title">程式地圖</h2>
+        <button id="map-tab-list" class="map-tab is-active" onclick="switchMapTab('list')">結構</button>
+        <button id="map-tab-graph" class="map-tab" onclick="switchMapTab('graph')">呼叫關係</button>
+        <button class="text-button" onclick="closeMapModal()">關閉</button>
+      </div>
+      <div id="map-view-list" class="map-list"><pre id="modal-map-content"></pre></div>
+      <div id="map-view-graph" class="map-graph hidden">
+        <div class="graph-toolbar">
+          <button class="graph-control" onclick="graphViewer.zoom(1 / 1.2)" aria-label="縮小有向圖">−</button>
+          <span id="graph-zoom-label" aria-live="polite">100%</span>
+          <button class="graph-control" onclick="graphViewer.zoom(1.2)" aria-label="放大有向圖">＋</button>
+          <button class="graph-control" onclick="graphViewer.reset()">原始大小</button>
+          <button class="graph-control" onclick="graphViewer.fit()">符合視窗</button>
+          <button id="graph-fullscreen" class="graph-control" onclick="toggleMapFullscreen()">全螢幕</button>
+          <input id="graph-search" placeholder="尋找節點" aria-label="尋找圖中節點" oninput="graphViewer.find(this.value)">
+        </div>
+        <div id="graph-viewport" class="graph-viewport" tabindex="0" aria-label="有向圖，可拖曳平移或使用縮放按鈕">
+          <div class="graph-canvas"><div id="mermaid-graph-container">載入中…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/workspace.js"></script>
+  <script src="/static/js/sessions.js"></script>
+  <script src="/static/js/chat.js"></script>
+  <script src="/static/js/project-tools.js"></script>
+  <script src="/static/js/runtime-panel.js"></script>
+  <script src="/static/js/log-panel.js"></script>
+  <script src="/static/js/skill-panel.js"></script>
+  <script src="/static/js/mcp-panel.js"></script>
+</body>
+</html>

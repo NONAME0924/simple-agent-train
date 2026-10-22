@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "${PYTHON}",
+      "args": ["-B", "-c", "from blender_mcp.server import main; main()"],
+      "env": {
+        "BLENDER_HOST": "${BLENDER_HOST}",
+        "BLENDER_PORT": "${BLENDER_PORT}",
+        "DISABLE_TELEMETRY": "true"
+      },
+      "instance": "blender:${BLENDER_HOST}:${BLENDER_PORT}",
+      "timeout": 120,
+      "connect_timeout": 20,
+      "include": ["get_addon_status", "get_scene_info", "execute_blender_code", "look"],
+      "read_only": ["get_addon_status", "get_scene_info", "look"],
+      "skill": "blender"
+    }
+  }
+}

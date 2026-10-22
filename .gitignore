@@ -1,0 +1,52 @@
+# 本機設定：只提交範例。
+.env
+.env.*
+!.env.example
+launcher.ini
+mcp.json
+.agent-setup.lock
+secrets/
+.secrets/
+credentials/
+credentials.json
+service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Ollama 模型與本機模型檔。
+.ollama/
+ollama-models/
+*.gguf
+*.ggml
+
+# 執行資料與交付壓縮檔。
+memory.db*
+data/
+logs/
+/workspace/*
+!/workspace/README.md
+!/workspace/README.en.md
+*.zip
+
+# Python 環境與快取。
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 隨發行包提供的 Windows 環境與編譯產物，不作為原始碼提交。
+/runtime/*
+!/runtime/README.md
+!/runtime/README.en.md
+/AI-Agent.exe
+
+# 本機 Skill 內容不提交；只公開技能來源與目錄說明。
+/skills/*
+!/skills/README.md
+!/skills/README.en.md

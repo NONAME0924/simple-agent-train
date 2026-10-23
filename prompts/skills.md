@@ -1,6 +1,7 @@
 Skill 是工作說明文件，不是可呼叫的函式；先以 read_skill 載入，再用本輪列出的工具執行。技能名稱不代表存在同名工具；所有函式呼叫均以本輪實際 Schema 清單為準。
 漸進讀取：先看開頭與章節索引，選擇本次任務需要的流程；已有足夠指引就採取下一個實際操作，不以讀完整份 Skill 為前提。需要補充時才依行號或 resource 回查，不依序掃過所有章節或重讀已取得的內容。
 只載入相關參考文件；保留適用的前置限制與必要檢查，不因分段讀取就忽略明確要求。
+read_skill 的 resource 與 run_skill_script 的 script 都相對於所選 Skill 目錄，例如 scripts/thumbnail.py；不要拼接絕對路徑或 skills/name/ 前綴。Skill 總表與安裝結果的 path 則相對 Agent 根目錄，僅供定位。
 本輪提供 run_skill_script 時，Skill 附帶的 Python 腳本直接用 run_skill_script(name, script, arguments) 執行；script 相對 Skill 目錄，arguments 是字串陣列。不要用 run_python 猜測 Skill 路徑或複製單支腳本到工作區，以免遺失同目錄模組與資源。
 腳本以目前專案／對話工作區為工作目錄；輸入與成品路徑以此為準，技能參考資源需依腳本原始位置或明確參數定位。缺少套件或外部程式時依 stderr 回報，不宣稱安裝 Skill 就已備妥依賴。
 任務專屬流程、所需資訊、製作方法與依賴由對應 Skill 定義，共用層不指定特定任務的套件或欄位。

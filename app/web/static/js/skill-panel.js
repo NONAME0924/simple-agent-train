@@ -12,7 +12,7 @@
       if (data.truncated) content.appendChild(document.createTextNode("（內容過長，僅顯示前段。）"));
       const metadata = document.createElement("details"), title = document.createElement("summary");
       metadata.className = "skill-metadata"; title.textContent = "來源與安裝資訊";
-      const location = document.createElement("p"); location.textContent = data.path;
+      const location = document.createElement("p"); location.textContent = `位置（相對 Agent 根目錄）：${data.path}`;
       metadata.append(title, location);
       if (data.installed_at) {
         const installed = document.createElement("p"); installed.textContent = `安裝時間：${new Date(data.installed_at).toLocaleString()}`;

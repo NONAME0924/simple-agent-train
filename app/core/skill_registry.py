@@ -49,7 +49,7 @@ class SkillRegistry:
                     continue
                 path = folder / "SKILL.md"
                 item = {"id": hashlib.sha256(str(folder).encode()).hexdigest()[:24], "name": folder.name,
-                        "description": "", "path": str(path), "scope": "全域", "valid": False,
+                        "description": "", "path": path.relative_to(APP_DIR).as_posix(), "scope": "全域", "valid": False,
                         "source_url": "", "installed_at": "", "error": ""}
                 try:
                     if not path.resolve().is_relative_to(folder.resolve()):
@@ -102,11 +102,16 @@ class SkillRegistry:
         if skill is None:
             raise ValueError(f"找不到 Skill：{name}")
         folder = skill["path"].parent.resolve()
+        if Path(resource).is_absolute():
+            raise ValueError("resource 請使用相對於該 Skill 的路徑，例如 SKILL.md 或 scripts/thumbnail.py，不要填絕對路徑。")
         path = (folder / resource).resolve()
         if not path.is_relative_to(folder):
             raise ValueError("只能讀取該 Skill 資料夾內的檔案。")
+        resource = path.relative_to(folder).as_posix()
+        if not path.is_file():
+            raise FileNotFoundError(f"Skill {name} 找不到資源：{resource}。請依 Skill 內的相對路徑選讀，不加 skills/{name}/ 前綴。")
         lines = path.read_text(encoding="utf-8-sig").splitlines()
-        header = f"Skill：{name}\n來源：{path}\n"
+        header = f"Skill：{name}\nresource：{resource}\n路徑基準：此 Skill 目錄；補讀可沿用相同 name 與 resource。\n"
         if not lines:
             return header + "檔案沒有內容。"
         if start_line > len(lines):
@@ -138,6 +143,6 @@ skill_registry = SkillRegistry()
 def read_skill(name: str, resource: str = "SKILL.md", start_line: int = 1, end_line: int = 0) -> str:
     """按需讀取 Skill：預設開頭 60 行與章節索引，足夠指導任務就直接執行。
     缺少細節時依索引指定 start_line、end_line 選讀；end_line=0 從起點讀 60 行，每次最多 200 行。
-    resource 可指定該 Skill 內的參考文件相對路徑；只讀本次需要的檔案與段落。
+    resource 相對於該 Skill 目錄，例如 SKILL.md 或 scripts/thumbnail.py；不填絕對路徑或 skills/name/ 前綴。
     """
     return skill_registry.read(name, resource, start_line, end_line)

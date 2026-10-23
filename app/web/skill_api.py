@@ -1,6 +1,6 @@
 """全域 Skill 總表與說明預覽；安裝統一走 Agent 工具。"""
-from pathlib import Path
 from fastapi import APIRouter, HTTPException
+from app.config import APP_DIR
 from app.core.skill_registry import skill_registry
 
 router = APIRouter()
@@ -19,7 +19,7 @@ def skill_details(skill_id: str):
     if not item["valid"]:
         return {**item, "content": "", "truncated": False}
     try:
-        with Path(item["path"]).open(encoding="utf-8-sig") as stream:
+        with (APP_DIR / item["path"]).open(encoding="utf-8-sig") as stream:
             content = stream.read(256 * 1024 + 1)
         return {**item, "content": content[:256 * 1024], "truncated": len(content) > 256 * 1024}
     except (OSError, UnicodeError) as error:

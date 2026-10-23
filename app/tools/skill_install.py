@@ -15,6 +15,7 @@ from threading import Lock
 from urllib.parse import quote, unquote, urljoin, urlsplit
 import httpx
 from app.core.skill_registry import GLOBAL_SKILL_DIR, INSTALL_RECORD, skill_metadata, skill_registry
+from app.config import APP_DIR
 from app.logging_setup import log
 
 MAX_DOWNLOAD = 50 * 1024 * 1024
@@ -193,6 +194,6 @@ def install_skill(source_url: str, skill_path: str = "", ref: str = "") -> str:
                 (staging / INSTALL_RECORD).write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
                 staging.rename(target)
     log("skill.installed", **record, path=str(target), scope="global")
-    return json.dumps({"status": "installed", **record, "path": str(target),
+    return json.dumps({"status": "installed", **record, "path": target.relative_to(APP_DIR).as_posix(),
                        "message": "已全域安裝，所有專案下一輪主提示語自動載入，不需重啟。",
                        "note": "來源只提供單份 SKILL.md，未包含額外腳本或參考檔案。" if single_file else "技能資料夾已完整保存；額外套件與外部服務依賴需另行處理。"}, ensure_ascii=False)

@@ -168,6 +168,8 @@ arguments 可省略或傳空陣列，其他情況每個命令列參數各一項�
 
 `read_skill(name, resource="SKILL.md", start_line=1, end_line=0)` 預設讀開頭 60 行，長文件附最多 40 個章節標題及行號；end_line=0 表示從指定起點讀 60 行，可指定實際範圍，每次最多 200 行。章節索引略過 fenced code block 內的註解標題。已有足夠指引就執行；只有缺少細節時，才依章節行號或 resource 選讀，不以讀完整份為前提，也不預先讀整個技能目錄。
 
+技能讀取回傳 `name` 與相對於該 Skill 的 `resource`，不再顯示本機絕對來源。例如 `read_skill(name="pptx", resource="scripts/thumbnail.py")`，同一路徑也可作為 run_skill_script 的 script；不加 `skills/pptx/` 前綴，不接受絕對 resource。Skill 總表、側欄與安裝成功結果的 path 統一相對 Agent 根目錄，例如 `skills/pptx/SKILL.md`，屬於位置資訊，不能整段當作 resource。後端依 Agent／Skill 根目錄定位，不依賴終端的目前目錄，原始 Skill 與程序 Log 保留實際定位。
+
 已選讀的段落完整進入工作上下文，不再截成頭尾，不需改用 read_tool_output 補讀。Skill 原檔與側欄的完整文件預覽保持不變。整體達可用輸入預算 80% 時，仍沿用既有上下文壓縮保護並封存原文；實際是否需要補讀由模型依任務判斷。
 
 模型回傳 done=true 不代表一定有可用答案；model.end 記錄 done_reason、輸入／輸出 tokens、思考／回答長度與工具呼叫數。空回應以 WARNING 記錄，不再當成成功；沒有回答也沒有工具呼叫時，每次任務最多恢復一次模型請求，不重做任何已完成的工具操作，也不增加工具輪數。介面會顯示恢復狀態。

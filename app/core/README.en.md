@@ -13,4 +13,4 @@ Orchestrates runs; tools and storage stay in their own modules.
 | `intent.py` | Routes automatic requests to direct execution or planning. |
 | `model_client.py` | Ollama streaming, completion markers, empty-response recovery, and timeout diagnostics. |
 | `prompt.py` | Assembles system prompts, AGENTS.md, Skill catalogs, and tool lists. |
-| `skill_registry.py` | Discovers Skills, parses metadata, and reads selected ranges with a heading index. |
+| `skill_registry.py` | Discovers Skills, parses metadata, and reads selected ranges with a heading index and relative paths. |

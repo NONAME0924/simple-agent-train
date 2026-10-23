@@ -24,7 +24,7 @@ def _source(session_id, scope):
 @router.get("/api/sessions/{session_id}/logs")
 def read_logs(session_id: str, scope: LogScope = "current",
               level: Literal["ALL", "INFO", "WARNING", "ERROR"] = "ALL",
-              category: Literal["ALL", "system", "model", "tool", "mcp", "memory"] = "ALL",
+              category: Literal["ALL", "system", "model", "tool", "memory"] = "ALL",
               limit: int = Query(default=100, ge=1, le=200)):
     path, label, only_session = _source(session_id, scope)
     entries, budget, limited = [], 4 * 1024 * 1024, False

@@ -46,8 +46,7 @@ async def execute_call(session_id, name, arguments, allowed, *, mode, sdd_saved,
     memory_token = memory_session.set(session_id)
     started = time.perf_counter()
     tool = tool_registry.get_tool(name)
-    function = (f"mcp.{tool.server}.{tool.original_name}" if hasattr(tool, "server") else
-                f"{tool.func.__module__}.{tool.func.__qualname__}" if tool else name)
+    function = f"{tool.func.__module__}.{tool.func.__qualname__}" if tool else name
     log("tool.start", tool=name, function=function, arguments=arguments)
     def success(result):
         result = result if isinstance(result, ToolResult) else ToolResult(result)

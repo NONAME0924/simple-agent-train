@@ -218,5 +218,3 @@ textarea { resize:vertical; }
 .message-images { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 .message-images a { min-width:0; max-width:100%; }
 .message-images img { display:block; max-width:100%; width:auto; max-height:240px; border:1px solid var(--line); border-radius:6px; object-fit:contain; }
-.mcp-entry { padding:14px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
-.mcp-entry details { margin-top:10px; font-size:12px; }

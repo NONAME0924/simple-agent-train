@@ -13,7 +13,6 @@
 | `empty_response.md` | 空回應的一次恢復提示。 |
 | `intent.md` | 自動模式的意圖分類。 |
 | `limit_summary.md` | 上限後不操作工具，只統整本次結果。 |
-| `mcp.md` | MCP／Blender 連線及操作引導。 |
 | `plan.md` | SDD 規劃與保存規則。 |
 | `preferences.md` | 長期共用偏好與單次需求的區分。 |
 | `project_memory.md` | 專案 L2 增量摘要規則。 |

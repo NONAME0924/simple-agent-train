@@ -210,7 +210,6 @@ function selectProjectTab(name) {
   if (name === "files") loadWorkspaceFiles();
   if (name === "logs") { window.refreshLogPanel?.(); return; }
   if (name === "skills") { window.refreshSkillPanel?.(); return; }
-  if (name === "mcp") { window.refreshMcpPanel?.(); return; }
   window.refreshRuntimePanel?.(true);
 }
 function openProjectPanel(name = document.querySelector('[data-panel][aria-selected="true"]').dataset.panel) {

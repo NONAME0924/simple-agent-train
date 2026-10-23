@@ -7,7 +7,6 @@ Backend entry points and responsibility-based modules.
 | File/directory | Purpose |
 | --- | --- |
 | `core/` | Orchestrates runs; tools and storage stay in their own modules. |
-| `mcp/` | Generic code remains public; actual mcp.json and credentials are ignored. |
 | `storage/` | Manages local data; user artifacts are stored outside this source directory. |
 | `tools/` | Function signatures supply both schemas and argument validation. |
 | `web/` | FastAPI routes and browser assets. |

@@ -6,9 +6,6 @@
 | --- | --- | --- |
 | SDD Skill | The author's [NONAME0924/spec-driven-development](https://github.com/NONAME0924/spec-driven-development) | Local `skills/sdd/SKILL.md` is a compact adaptation using save_sdd for spec, plan, and tasks; it does not implement the complete upstream workflow. |
 | PPTX Skill | [Anthropic Skills / pptx](https://github.com/anthropics/skills/tree/main/skills/pptx) | Local instructions, scripts, and OOXML schemas; its original LICENSE.txt is retained. Skill contents are not committed. |
-| Blender Skill | Written for this project | Instructions for this Agent's scene inspection, editing, visual review, and saving; not an upstream official Skill copy. |
-| Blender MCP tools | [ahujasid/mcp-for-blender](https://github.com/ahujasid/mcp-for-blender) | Python package and Blender addon; versions are recorded in requirements.lock.txt. |
-| MCP Python SDK | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | Generic MCP client protocol support. |
 
 The SDD upstream repository identifies its license as MIT; see its [LICENSE](https://github.com/NONAME0924/spec-driven-development/blob/main/LICENSE). The local adaptation is not a complete upstream copy and has no recorded originating commit.
 

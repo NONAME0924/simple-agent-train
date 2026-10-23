@@ -12,7 +12,6 @@ def register_tools():
     from app.tools.planning import save_sdd
     from app.tools.preferences import update_user_preference
     from app.tools.skill_install import install_skill, list_installed_skills
-    from app.mcp.client import connect_mcp, list_mcp_connections
     from app.core.skill_registry import read_skill
     from app.storage.context_manager import read_tool_output
     from app.storage.jobs import get_job, stop_job
@@ -32,7 +31,6 @@ def register_tools():
         google_search, search_history_memory, read_web_page, finish_task,
         get_workspace_code_map, list_workspace_files, read_workspace_file,
         search_workspace_code, save_sdd, read_skill, read_tool_output, get_job, read_plan_tasks, update_user_preference, list_installed_skills,
-        connect_mcp, list_mcp_connections,
     ):
         tool_registry.register(tool, modes=("agent", "plan"))
 

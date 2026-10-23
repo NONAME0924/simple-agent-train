@@ -24,7 +24,7 @@ def prompt_messages(default_prompt: str, mode: str, tool_schemas=(), *, finalizi
         messages.append({"role": "system", "content": load_prompt("skills")})
         skills = skill_registry.catalog()
         if skills:
-            messages.append({"role": "system", "content": "可用 Skill（以 read_skill 載入完整說明及參考文件）：\n" + skills})
+            messages.append({"role": "system", "content": "可用 Skill（以 read_skill 取得開頭與索引，按需選讀必要段落）：\n" + skills})
     paths = (APP_DIR / "AGENTS.md", Path(get_workspace_dir()) / "AGENTS.md")
     for path in dict.fromkeys(paths):
         if path.is_file():
@@ -34,8 +34,6 @@ def prompt_messages(default_prompt: str, mode: str, tool_schemas=(), *, finalizi
     messages.append({"role": "system", "content": load_prompt("preferences")})
     if any(tool["name"] == "install_skill" for tool in tools):
         messages.append({"role": "system", "content": load_prompt("skill_install")})
-    if any(tool["name"] == "connect_mcp" for tool in tools):
-        messages.append({"role": "system", "content": load_prompt("mcp")})
     mode_prompt = load_prompt("limit_summary" if finalizing else "plan" if mode == "plan" else "agent")
     messages.append({"role": "system", "content": mode_prompt})
     if not finalizing and mode == "agent":

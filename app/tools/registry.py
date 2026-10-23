@@ -1,10 +1,7 @@
 """工具定義、嚴格參數驗證與註冊；執行及 log 由 core.execution 負責。"""
 import inspect
-from contextvars import ContextVar
 from typing import Dict, List, Any, Callable
 from pydantic import ConfigDict, create_model
-
-scoped_tools = ContextVar("scoped_tools", default={})
 
 
 class ToolResult(str):
@@ -72,10 +69,10 @@ class ToolRegistry:
 
     def get_schemas(self, mode: str = None) -> List[Dict[str, Any]]:
         """依模式取得工具清單，也是動態提示語的唯一工具來源。"""
-        return [tool.schema for tool in {**self._tools, **scoped_tools.get()}.values() if mode is None or mode in tool.modes]
+        return [tool.schema for tool in self._tools.values() if mode is None or mode in tool.modes]
 
     def get_tool(self, name):
-        return scoped_tools.get().get(name) or self._tools.get(name)
+        return self._tools.get(name)
 
 # 建立全局單例註冊中心
 tool_registry = ToolRegistry()

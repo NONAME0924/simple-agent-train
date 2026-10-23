@@ -8,9 +8,8 @@ Loaded in index.html order; app.js holds shared state.
 | --- | --- |
 | `api.js` | Shared JSON API requests and error handling. |
 | `app.js` | Shared state, panels, modes, and run-status display. |
-| `chat.js` | Messages, SSE, collapsed activity, and the separate final answer. |
+| `chat.js` | Messages, SSE, thinking and activity labeled by round, and the separate final answer. |
 | `log-panel.js` | Log filtering, details, and downloads. |
-| `mcp-panel.js` | MCP/Blender status, connections, and error display. |
 | `project-tools.js` | L2, SDD, and task-status panels. |
 | `runtime-panel.js` | Background jobs, output, and conversation information. |
 | `sessions.js` | Project/conversation lists, switching, and management. |

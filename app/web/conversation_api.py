@@ -14,16 +14,8 @@ from app.storage.memory import memory_manager
 from app.storage.jobs import job_manager, JOB_DIR
 from app.storage.workspace import session_workspace
 from app.storage.images import MAX_IMAGE_BYTES, MAX_IMAGES, save_image, image_path, image_info
-from app.mcp.client import mcp_manager
 
 router = APIRouter()
-
-
-async def detach_mcp(session):
-    try:
-        await mcp_manager.detach(session)
-    except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error))
 
 
 class ChatRequest(BaseModel):
@@ -95,7 +87,6 @@ async def rename_project(project_id: str, req: ProjectRequest):
 async def delete_project(project_id: str, request: Request):
     if any(s["project_id"] == project_id and (s["id"] in request.app.state.agent.runs or job_manager.has_active(s["id"])) for s in memory_manager.list_sessions()):
         raise HTTPException(status_code=409, detail="專案中仍有執行中的任務，請完成後再刪除分類。")
-    await detach_mcp({"project_id": project_id, "id": ""})
     if not memory_manager.delete_project(project_id):
         raise HTTPException(status_code=404, detail="找不到專案。")
     return {"status": "success"}
@@ -126,9 +117,6 @@ async def move_session(session_id: str, req: MoveSessionRequest, request: Reques
     project_id = req.project_id or None
     if project_id is not None and memory_manager.get_project(project_id) is None:
         raise HTTPException(status_code=404, detail="找不到專案。")
-    old_session = memory_manager.get_session(session_id)
-    if old_session and not old_session["project_id"] and project_id:
-        await detach_mcp(old_session)
     if not memory_manager.move_session(session_id, project_id):
         raise HTTPException(status_code=404, detail="找不到對話。")
     return memory_manager.get_session(session_id)
@@ -154,9 +142,6 @@ async def delete_session(session_id: str, request: Request):
     """刪除指定會話及其所有歷史紀錄 (級聯刪除)"""
     if session_id in request.app.state.agent.runs or job_manager.has_active(session_id):
         raise HTTPException(status_code=409, detail="此對話仍有執行中的任務，請完成後再刪除。")
-    session = memory_manager.get_session(session_id)
-    if session and not session["project_id"]:
-        await detach_mcp(session)
     success = memory_manager.delete_session(session_id)
     return {"status": "success" if success else "not_found"}
 

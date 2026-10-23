@@ -1,4 +1,4 @@
-"""發現本機 Skill 的名稱與用途，完整說明及參考檔案按需讀取。"""
+"""發現本機 Skill 的名稱與用途，透過章節索引按需讀取文件。"""
 from pathlib import Path
 from app.config import APP_DIR
 import hashlib
@@ -94,7 +94,10 @@ class SkillRegistry:
     def catalog(self):
         return "\n".join(f"- {name}：{skill['description']}" for name, skill in self.discover().items())
 
-    def read(self, name, resource="SKILL.md"):
+    def read(self, name, resource="SKILL.md", start_line=1, end_line=0):
+        end_line = end_line or start_line + 59
+        if start_line < 1 or end_line < start_line or end_line - start_line >= 200:
+            raise ValueError("請提供有效行號範圍，每次最多讀取 200 行。")
         skill = self.discover().get(name)
         if skill is None:
             raise ValueError(f"找不到 Skill：{name}")
@@ -102,12 +105,39 @@ class SkillRegistry:
         path = (folder / resource).resolve()
         if not path.is_relative_to(folder):
             raise ValueError("只能讀取該 Skill 資料夾內的檔案。")
-        return f"Skill：{name}\n來源：{path}\n\n{path.read_text(encoding='utf-8-sig')}"
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
+        header = f"Skill：{name}\n來源：{path}\n"
+        if not lines:
+            return header + "檔案沒有內容。"
+        if start_line > len(lines):
+            raise ValueError(f"檔案共 {len(lines)} 行，起始行號超出範圍。")
+        end_line = min(end_line, len(lines))
+        outline, fence = [], ""
+        for number, line in enumerate(lines, 1):
+            marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+            if marker:
+                if not fence:
+                    fence = marker[1][0]
+                elif marker[1][0] == fence:
+                    fence = ""
+            elif not fence and re.match(r"^#{1,6}\s+", line):
+                outline.append(f"{number}: {line}")
+        if start_line == 1 and len(lines) > end_line and outline:
+            header += "\n章節索引（依任務選讀，不需依序讀完）：\n" + "\n".join(outline[:40]) + "\n"
+        content = "\n".join(f"{number}: {lines[number - 1]}" for number in range(start_line, end_line + 1))
+        hint = ("\n\n還有未讀內容。已有足夠指引就執行；需要細節時用同一 read_skill 的 resource、"
+                "start_line、end_line 選讀相關段落，不要為了讀完而連續翻頁。"
+                if start_line > 1 or end_line < len(lines) else "")
+        log("skill.read", name=name, resource=resource, start_line=start_line, end_line=end_line, total_lines=len(lines))
+        return header + f"\n內容：第 {start_line}～{end_line} 行／共 {len(lines)} 行\n" + content + hint
 
 
 skill_registry = SkillRegistry()
 
 
-def read_skill(name: str, resource: str = "SKILL.md") -> str:
-    """載入已列出的 Skill 完整說明；需要參考資料時，resource 可指定該 Skill 內的相對檔案路徑。"""
-    return skill_registry.read(name, resource)
+def read_skill(name: str, resource: str = "SKILL.md", start_line: int = 1, end_line: int = 0) -> str:
+    """按需讀取 Skill：預設開頭 60 行與章節索引，足夠指導任務就直接執行。
+    缺少細節時依索引指定 start_line、end_line 選讀；end_line=0 從起點讀 60 行，每次最多 200 行。
+    resource 可指定該 Skill 內的參考文件相對路徑；只讀本次需要的檔案與段落。
+    """
+    return skill_registry.read(name, resource, start_line, end_line)

@@ -8,9 +8,8 @@
 | --- | --- |
 | `api.js` | 共用 JSON API 請求與錯誤處理。 |
 | `app.js` | 共用狀態、面板、模式與執行狀態顯示。 |
-| `chat.js` | 訊息、SSE、收合紀錄與獨立的最終 answer。 |
+| `chat.js` | 訊息、SSE、依輪次收合的思考與執行紀錄，以及獨立的最終 answer。 |
 | `log-panel.js` | Log 篩選、展開及下載。 |
-| `mcp-panel.js` | MCP 與 Blender 場景狀態、連線及錯誤顯示。 |
 | `project-tools.js` | L2、SDD 與任務狀態面板。 |
 | `runtime-panel.js` | 背景工作、輸出與對話資訊。 |
 | `sessions.js` | 專案與對話清單、切換及管理。 |

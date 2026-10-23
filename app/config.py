@@ -14,6 +14,7 @@ load_dotenv(APP_DIR / ".env", override=False, encoding="utf-8-sig")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "").strip()
 MODEL_READ_TIMEOUT = max(1.0, float(os.getenv("AGENT_MODEL_READ_TIMEOUT", "600")))
+MAX_AUTONOMOUS_STEPS = max(1, int(os.getenv("AGENT_MAX_STEPS", "15")))
 
 # 實際請求同步傳入 num_ctx；不把模型理論最大長度當成配置值。
 CONTEXT_TOKENS = max(4096, int(os.getenv("AGENT_CONTEXT_TOKENS", "32768")))

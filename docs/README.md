@@ -8,7 +8,6 @@
 | --- | --- |
 | `architecture.en.md` | 英文架構與執行流程。 |
 | `architecture.md` | 中文架構與執行流程。 |
-| `blender-mcp.md` | Blender 插件、連線、綁定與排查。 |
 | `project-workspace-and-documents.md` | 工作區、文件格式、L2 與任務。 |
 | `publishing.en.md` | 英文 Git 公開範圍與設定檢視紀錄。 |
 | `publishing.md` | 中文 Git 公開範圍與設定檢視紀錄。 |

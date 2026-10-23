@@ -28,7 +28,7 @@
         row.dataset.level = entry.level;
         const title = document.createElement("summary");
         const stamp = new Date(entry.time);
-        const category = { system: "系統", model: "模型", tool: "工具", mcp: "MCP 連線", memory: "記憶與上下文" }[entry.category] || "系統";
+        const category = { system: "系統", model: "模型", tool: "工具", memory: "記憶與上下文" }[entry.category] || "系統";
         title.textContent = `${Number.isNaN(stamp.getTime()) ? entry.time || "" : stamp.toLocaleString()} · ${entry.level || "INFO"} · ${category} · ${entry.tool || entry.event || entry.logger || "事件"}`;
         const body = document.createElement("pre"); body.className = "panel-pre";
         body.textContent = JSON.stringify(entry, null, 2);

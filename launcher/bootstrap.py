@@ -7,7 +7,7 @@ import sys
 
 APP_DIR = Path(__file__).resolve().parents[1]
 REQUIREMENTS = APP_DIR / "requirements.lock.txt"
-REQUIRED_MODULES = ("fastapi", "uvicorn", "dotenv", "httpx", "mcp", "blender_mcp", "jsonschema")
+REQUIRED_MODULES = ("fastapi", "uvicorn", "dotenv", "httpx")
 
 
 def run(command):
@@ -30,11 +30,11 @@ def prepare():
     signature = hashlib.sha256(REQUIREMENTS.read_bytes()).hexdigest()
     stamp = folder / ".agent-requirements.sha256"
     recorded = stamp.read_text(encoding="utf-8").strip() if stamp.is_file() else ""
-    # 只檢查模組位置，不匯入或啟動 MCP／Blender。
+    # 只檢查模組位置，不匯入或啟動服務。
     check = "import importlib.util, sys; sys.exit(any(importlib.util.find_spec(name) is None for name in " + repr(REQUIRED_MODULES) + "))"
     available = subprocess.run([str(python), "-B", "-c", check], cwd=APP_DIR).returncode == 0
     if recorded != signature or not available:
-        print("首次使用或依賴已更新，正在安裝 Agent 與 Blender MCP 套件；需要網路。", flush=True)
+        print("首次使用或依賴已更新，正在安裝 Agent 套件；需要網路。", flush=True)
         try:
             pip_ready = subprocess.run([str(python), "-m", "pip", "--version"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0

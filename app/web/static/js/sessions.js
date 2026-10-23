@@ -98,7 +98,6 @@ async function showSession(session) {
   currentSessionId = session.id;
   currentProjectId = session.project_id || null;
   window.resetLogPanel?.();
-  window.resetMcpPanel?.();
   window.clearAttachments?.();
   const draft = sessionDrafts.get(session.id);
   userInput.value = draft?.text || "";

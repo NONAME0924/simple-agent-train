@@ -84,7 +84,6 @@
       <button id="tab-execution" role="tab" aria-controls="panel-execution" aria-selected="false" data-panel="execution" tabindex="-1">執行</button>
       <button id="tab-logs" role="tab" aria-controls="panel-logs" aria-selected="false" data-panel="logs" tabindex="-1">Log</button>
       <button id="tab-skills" role="tab" aria-controls="panel-skills" aria-selected="false" data-panel="skills" tabindex="-1">Skill</button>
-      <button id="tab-mcp" role="tab" aria-controls="panel-mcp" aria-selected="false" data-panel="mcp" tabindex="-1">MCP</button>
     </div>
     <div id="runtime-panel" class="panel-body">
       <section id="panel-files" role="tabpanel" aria-labelledby="tab-files">
@@ -150,21 +149,12 @@
         <p id="skills-status" class="help-text" role="status"></p>
         <div id="skills-list"></div>
       </section>
-      <section id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden>
-        <div class="section-heading"><h3>外部工具</h3><button id="mcp-refresh" class="text-button">重新整理</button></div>
-        <p class="help-text">預設 Blender。先在 Blender 安裝並啟用插件，再按側欄的「Start MCP Server」，然後在這裡連線。</p>
-        <a class="text-button" href="/api/mcp/blender/addon" download>下載 Blender 插件</a>
-        <p id="mcp-status" class="help-text" role="status"></p>
-        <div id="mcp-list"></div>
-        <p class="help-text">連線綁定目前專案；一般對話各自綁定。同一實例同時供一個任務使用。沒有定時輪詢；修改 mcp.json 後請中斷再重新連線，修改 .env 後請重啟 Agent。</p>
-        <details class="panel-section"><summary>Agent 與 Blender 在不同電腦？</summary><p class="help-text">Blender 位址由 Agent 後端連線。Agent 在遠端時，127.0.0.1 指遠端主機；請先建立連到 Blender 電腦的 SSH 連接埠轉送，再使用對應的 BLENDER_HOST／BLENDER_PORT。</p></details>
-      </section>
       <section id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" hidden>
         <div class="section-heading"><h3>執行日誌</h3><button id="logs-refresh" class="text-button">重新整理</button></div>
         <div class="button-row log-filters">
           <select id="logs-scope" aria-label="日誌範圍"><option value="current">目前專案／對話</option><option value="session">只看此對話</option><option value="system">系統</option></select>
           <select id="logs-level" aria-label="日誌等級"><option value="ALL">全部等級</option><option value="INFO">INFO</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option></select>
-          <select id="logs-category" aria-label="日誌類別"><option value="ALL">全部類別</option><option value="system">系統</option><option value="model">模型</option><option value="tool">工具</option><option value="mcp">MCP 連線</option><option value="memory">記憶與上下文</option></select>
+          <select id="logs-category" aria-label="日誌類別"><option value="ALL">全部類別</option><option value="system">系統</option><option value="model">模型</option><option value="tool">工具</option><option value="memory">記憶與上下文</option></select>
         </div>
         <p id="logs-status" class="help-text" role="status"></p>
         <a id="logs-download" class="text-button" download>下載來源整檔（未篩選）</a>
@@ -232,6 +222,5 @@
   <script src="/static/js/runtime-panel.js"></script>
   <script src="/static/js/log-panel.js"></script>
   <script src="/static/js/skill-panel.js"></script>
-  <script src="/static/js/mcp-panel.js"></script>
 </body>
 </html>

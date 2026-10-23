@@ -88,7 +88,7 @@ class ContextManager:
             _token_scales[self.model] = self.scale
 
     def spill(self, text, *, preserve=False):
-        # Skill 是本輪需要的完整說明；總量由 prepare 的上下文預算處理。
+        # 已選讀的 Skill 段落不再截成頭尾；總量由 prepare 的上下文預算處理。
         if preserve or estimate_tokens(text) < min(4096, self.threshold // 4):
             return str(text)
         folder = output_folder(self.session_id)

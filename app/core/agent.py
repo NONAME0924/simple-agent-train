@@ -3,7 +3,7 @@ import asyncio
 import os
 from typing import AsyncGenerator, Dict, Optional
 import httpx
-from app.config import OLLAMA_BASE_URL, DEFAULT_MODEL, CONTEXT_TOKENS, OUTPUT_TOKENS, MODEL_READ_TIMEOUT
+from app.config import OLLAMA_BASE_URL, DEFAULT_MODEL, CONTEXT_TOKENS, OUTPUT_TOKENS, MODEL_READ_TIMEOUT, MAX_AUTONOMOUS_STEPS
 from app.storage.context_manager import ContextManager
 from app.core.execution import RunControl, call_details, execute_call
 from app.core.conclusion import RunSummary, failure_reason
@@ -15,12 +15,10 @@ from app.core.model_client import stream_model
 from app.storage.project_memory import project_context, update_project_memory
 from app.core.prompt import prompt_messages, load_prompt
 from app.tools import register_tools
-from app.tools.registry import tool_registry, scoped_tools
-from app.mcp.client import mcp_manager
+from app.tools.registry import tool_registry
 from app.tools.preferences import preference_source
 from app.storage.workspace import workspace_scope, session_workspace
 
-MAX_AUTONOMOUS_STEPS = 15
 MAX_TEXT_ONLY_RECOVERIES = 2
 
 
@@ -58,7 +56,6 @@ class ChatAgent:
                                  "project_id": session["project_id"] if session else None})
         workspace_token = None
         preference_token = preference_source.set(user_message)
-        tools_token = scoped_tools.set({})
         output_images = []
         context = ContextManager(session_id, model)
         summary = RunSummary()
@@ -68,7 +65,7 @@ class ChatAgent:
         empty_retry_used = False
         text_only_rounds, stop_reason = 0, "completed"
         log("run.start", model=model, mode=mode, reasoning_level=reasoning_level,
-            user_message=user_message, images=list(images))
+            user_message=user_message, images=list(images), max_steps=MAX_AUTONOMOUS_STEPS)
         try:
             workspace_token = workspace_scope.set(session_workspace(session))
             scratchpad = context.load() + [{"role": "user", "content": user_message, "_image_ids": list(images)}]
@@ -90,7 +87,6 @@ class ChatAgent:
                     async for event in control.checkpoint():
                         yield event
                     finalizing = step > MAX_AUTONOMOUS_STEPS
-                    scoped_tools.set(mcp_manager.tools_for(session))
                     active_schemas = [] if finalizing else tool_registry.get_schemas(mode)
                     prefix = prompt_messages(os.getenv("DEFAULT_SYSTEM_PROMPT", load_prompt("system")),
                         mode, active_schemas, finalizing=finalizing, reasoning_level=reasoning_level) + ([] if finalizing else project)
@@ -140,7 +136,8 @@ class ChatAgent:
                             else:
                                 if event["type"] == "model_retry":
                                     empty_retry_used = True
-                                yield {**event, "type": "progress", "step": step} if event["type"] == "content" else event
+                                yield {**event, "type": "progress" if event["type"] == "content" else event["type"],
+                                       "step": step, "finalizing": finalizing}
                     except Exception as error:
                         if not finalizing:
                             raise
@@ -158,7 +155,7 @@ class ChatAgent:
                         if not content.strip():
                             log("run.empty_response", level=40, model=model, retried=empty_retry_used, **model_details)
                             if step == MAX_AUTONOMOUS_STEPS:
-                                continue  # 第 15 輪未結案，仍追加一次專用統整。
+                                continue  # 最後一輪未結案，仍追加一次專用統整。
                             stop_reason = "empty_response"
                             raise RuntimeError("模型未產生回答或工具呼叫，且本次的空回應恢復額度已用完。"
                                                "請在 Log 查看 model.end 與 run.empty_response 的結束原因及輸出用量。")
@@ -254,8 +251,6 @@ class ChatAgent:
                 yield {"type": "answer", "content": final_content, "images": output_images}
             yield {"type": "error", "message": failure_reason(error, stop_reason), "stop_reason": stop_reason}
         finally:
-            mcp_manager.release(control.run_id)
-            scoped_tools.reset(tools_token)
             if self.runs.get(session_id) is control:
                 self.runs.pop(session_id, None)
             if workspace_token is not None:

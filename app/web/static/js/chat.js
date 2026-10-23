@@ -4,8 +4,7 @@ const toolTitles = {
   google_search: "網路搜尋", save_sdd: "建立規格", update_user_preference: "更新共用偏好", search_workspace_code: "搜尋程式",
   read_skill: "讀取 Skill", install_skill: "全域安裝 Skill", list_installed_skills: "查看 Skill 總表", get_workspace_code_map: "程式地圖", list_workspace_files: "瀏覽檔案",
   read_workspace_file: "讀取檔案", write_workspace_file: "寫入檔案", edit_code_chunk: "修改程式",
-  run_python: "執行 Python", search_history_memory: "搜尋記憶", read_web_page: "讀取網頁", finish_task: "整理結果",
-  connect_mcp: "連線 MCP", list_mcp_connections: "查看 MCP"
+  run_python: "執行 Python", search_history_memory: "搜尋記憶", read_web_page: "讀取網頁", finish_task: "整理結果"
 };
 
 function imageUrl(session, imageId) {
@@ -56,8 +55,7 @@ function appendMessage(role, text = "", images = [], session = currentSessionId)
     }
   } else {
     message.innerHTML = `<details class="activity hidden"><summary>執行過程</summary>
-      <div class="activity-body"><div class="tool-container"></div>
-      <details class="thinking-box hidden"><summary>思考紀錄</summary><pre class="thinking-content"></pre></details></div></details>
+      <div class="activity-body"><div class="tool-container"></div></div></details>
       <p class="tool-notice runtime-error"></p>
       <div class="content-box prose">${text ? marked.parse(text) : '<span class="content-placeholder">準備中…</span>'}</div>
       <div class="plan-actions hidden"></div>`;
@@ -92,14 +90,15 @@ async function sendMessage(options = {}) {
   const content = reply.querySelector(".content-box"), notice = reply.querySelector(".tool-notice");
   let rawContent = "", receivedAnswer = false, receivedDone = false, streamError = false, planReady = false;
   let progressNote = null, progressStep = null;
+  const thinkingRounds = new Map();
 
   function updateActivity() {
     const records = Array.from(tools.querySelectorAll(".tool-record"));
     const failed = records.filter(record => record.dataset.state === "failed").length;
     const running = records.filter(record => record.dataset.state === "running").length;
     activity.classList.remove("hidden"); activity.classList.toggle("has-failure", failed > 0);
-    activity.firstElementChild.textContent = `執行過程${records.length ? ` · ${records.length} 個步驟` : ""}${running ? " · 執行中" : ""}${failed ? ` · ${failed} 個失敗` : ""}`;
-    if (failed && !streamError) notice.textContent = `${failed} 個步驟失敗，可展開執行過程查看完整錯誤。`;
+    activity.firstElementChild.textContent = `執行過程${records.length ? ` · ${records.length} 次工具呼叫` : ""}${running ? " · 執行中" : ""}${failed ? ` · ${failed} 個失敗` : ""}`;
+    if (failed && !streamError) notice.textContent = `${failed} 次工具呼叫失敗，可展開執行過程查看完整錯誤。`;
   }
   function handleEvent(event) {
     if (run.phase === "retrying" && ["progress", "content", "thinking", "tool_start"].includes(event.type)) setRunState("running", "", session);
@@ -144,13 +143,20 @@ async function sendMessage(options = {}) {
       run.contextUsage = `上下文估算 ≈${event.estimated_tokens.toLocaleString()} / ${event.input_budget.toLocaleString()} tokens · 80% 自動壓縮${event.compacted ? " · 已壓縮" : ""}`;
       if (visible()) document.getElementById("context-usage").textContent = run.contextUsage;
     } else if (event.type === "thinking") {
-      reply.querySelector(".thinking-box").classList.remove("hidden");
-      reply.querySelector(".thinking-content").append(document.createTextNode(event.delta || "")); updateActivity();
+      const key = event.finalizing ? "summary" : event.step;
+      if (!thinkingRounds.has(key)) {
+        const record = document.createElement("details"), title = document.createElement("summary");
+        title.textContent = event.finalizing ? "結案統整思考" : event.step ? `第 ${event.step} 輪思考` : "思考紀錄（輪次未知）";
+        const text = document.createElement("pre"); text.className = "thinking-content";
+        record.className = "thinking-box"; record.append(title, text); tools.appendChild(record);
+        thinkingRounds.set(key, text);
+      }
+      thinkingRounds.get(key).append(document.createTextNode(event.delta || "")); updateActivity();
     } else if (event.type === "tool_start") {
       const record = document.createElement("details"); record.className = "tool-record";
       record.dataset.callId = event.call_id; record.dataset.state = "running";
       const summary = document.createElement("summary"), result = document.createElement("pre");
-      record.dataset.title = `步驟 ${event.step || 1} · ${toolTitles[event.tool] || event.tool}`;
+      record.dataset.title = `第 ${event.step || 1} 輪 · ${toolTitles[event.tool] || event.tool}`;
       summary.textContent = record.dataset.title + " · 執行中";
       result.className = "tool-result"; result.textContent = `參數：\n${JSON.stringify(event.args || {}, null, 2)}`;
       record.append(summary, result); tools.appendChild(record); updateActivity();
@@ -166,12 +172,11 @@ async function sendMessage(options = {}) {
       if (visible() && ["run_python", "get_job", "stop_job"].includes(event.tool)) window.refreshRuntimePanel?.(false);
       if (visible() && ["save_sdd", "update_task_status"].includes(event.tool)) window.refreshProjectTools?.(true);
       if (event.tool === "install_skill" && event.ok && !document.getElementById("panel-skills").hidden) window.refreshSkillPanel?.();
-      if (event.tool === "connect_mcp" && visible() && !document.getElementById("panel-mcp").hidden) window.refreshMcpPanel?.();
     } else if (event.type === "progress" || event.type === "content") {
       if (!progressNote || progressStep !== event.step) {
         progressStep = event.step;
         const record = document.createElement("details"), title = document.createElement("summary");
-        title.textContent = event.step ? `第 ${event.step} 輪說明` : "執行說明";
+        title.textContent = event.finalizing ? "結案統整說明" : event.step ? `第 ${event.step} 輪說明` : "執行說明";
         progressNote = document.createElement("pre"); progressNote.className = "tool-result";
         record.append(title, progressNote); tools.appendChild(record);
       }

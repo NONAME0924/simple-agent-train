@@ -33,19 +33,3 @@ et-xmlfile==2.0.0
 defusedxml==0.7.1
 six==1.17.0
 python-dotenv==1.2.4
-mcp==1.30.0
-mcp-for-blender==2.2.2
-jsonschema==4.26.0
-attrs==26.1.0
-cffi==2.1.1
-cryptography==50.0.2
-httpx-sse==0.4.3
-jsonschema-specifications==2025.9.1
-pydantic-settings==2.16.1
-PyJWT==2.15.1
-python-multipart==0.0.32
-pywin32==312; sys_platform == "win32"
-referencing==0.37.0
-rpds-py==2026.9.1
-sse-starlette==3.5.0
-pycparser==3.11

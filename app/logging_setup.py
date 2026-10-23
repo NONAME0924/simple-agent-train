@@ -20,10 +20,8 @@ def event_category(event):
     prefix = str(event).split(".", 1)[0]
     if prefix in {"model", "intent"}:
         return "model"
-    if prefix in {"tool", "job", "workspace", "skill", "search", "web", "document", "image", "task", "preferences"} or event in {"mcp.result", "mcp.call_failed"}:
+    if prefix in {"tool", "job", "workspace", "skill", "search", "web", "document", "image", "task", "preferences"}:
         return "tool"
-    if prefix == "mcp":
-        return "mcp"
     if prefix in {"memory", "context"}:
         return "memory"
     return "system"
@@ -102,7 +100,7 @@ def setup_logging():
     access = logging.getLogger("uvicorn.access")
     if not any(isinstance(item, QuietJobPolls) for item in access.filters):
         access.addFilter(QuietJobPolls())
-    for name in ("httpx", "httpcore", "mcp"):
+    for name in ("httpx", "httpcore"):
         logging.getLogger(name).setLevel(logging.WARNING)
     root = logging.getLogger()
     if any(getattr(handler, "agent_log", False) for handler in root.handlers):

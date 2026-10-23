@@ -13,7 +13,6 @@ No credentials or local settings; user preferences belong in AGENTS.md.
 | `empty_response.md` | One-time empty-response recovery instructions. |
 | `intent.md` | Intent classification for automatic mode. |
 | `limit_summary.md` | Tool-free current-run summary after the round limit. |
-| `mcp.md` | MCP/Blender connection and operation guidance. |
 | `plan.md` | SDD planning and persistence rules. |
 | `preferences.md` | Separates lasting preferences from one-off requirements. |
 | `project_memory.md` | Incremental project L2 instructions. |

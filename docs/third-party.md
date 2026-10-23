@@ -6,9 +6,6 @@
 | --- | --- | --- |
 | SDD Skill | [NONAME0924/spec-driven-development](https://github.com/NONAME0924/spec-driven-development)，作者提供的專案 | 本機 `skills/sdd/SKILL.md` 是精簡調整版：以 save_sdd 保存 spec、plan、tasks；不等同完整上游工作流程。 |
 | PPTX Skill | [Anthropic Skills / pptx](https://github.com/anthropics/skills/tree/main/skills/pptx) | 本機工作說明、腳本與 OOXML Schema；保留原始 LICENSE.txt，技能內容不提交。 |
-| Blender Skill | 本專案自行撰寫 | 說明本 Agent 的場景查詢、操作、圖片確認與保存順序；不是從上游複製的官方 Skill。 |
-| Blender MCP 工具 | [ahujasid/mcp-for-blender](https://github.com/ahujasid/mcp-for-blender) | 透過 Python 套件與 Blender 插件連接；版本見 requirements.lock.txt。 |
-| MCP Python SDK | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | 通用 MCP 用戶端協定支援。 |
 
 SDD 上游倉庫標示 MIT；作者與授權以[上游 LICENSE](https://github.com/NONAME0924/spec-driven-development/blob/main/LICENSE)為準。本地精簡版不是上游完整副本，也沒有記錄可供對應的原始 commit。
 

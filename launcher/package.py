@@ -6,7 +6,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 INCLUDE = (
     "app", "prompts", "skills", "runtime", "docs", "launcher",
-    "AGENTS.md", ".env.example", "mcp.example.json", ".gitignore", "AI-Agent.exe", "README.md", "README.en.md",
+    "AGENTS.md", ".env.example", ".gitignore", "AI-Agent.exe", "README.md", "README.en.md",
     "workspace/README.md", "workspace/README.en.md",
     "requirements.txt", "requirements.lock.txt", "run.sh", "launcher.py", "啟動說明.txt",
 )
@@ -31,7 +31,7 @@ def package(output, platform="all"):
                 if path.is_symlink() or not path.is_file() or SKIP.intersection(relative.parts):
                     continue
                 if (any(part.startswith(".env") and part != ".env.example" for part in relative.parts)
-                        or path.name in {"launcher.ini", "mcp.json", "credentials.json"}
+                        or path.name in {"launcher.ini", "credentials.json"}
                         or path.name.startswith(("service-account", "id_rsa", "id_ed25519"))
                         or path.suffix.lower() in {".gguf", ".ggml", ".pem", ".key", ".p12", ".pfx"}):
                     continue

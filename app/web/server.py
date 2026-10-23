@@ -21,8 +21,6 @@ from app.web.conversation_api import router as conversation_router
 from app.web.workspace_api import router as workspace_router
 from app.web.log_api import router as log_router
 from app.web.skill_api import router as skill_router
-from app.web.mcp_api import router as mcp_router
-from app.mcp.client import mcp_manager
 
 
 @asynccontextmanager
@@ -32,7 +30,6 @@ async def lifespan(app):
     try:
         yield
     finally:
-        await mcp_manager.close()
         await asyncio.to_thread(job_manager.shutdown)
         log("server.stop")
 
@@ -88,7 +85,6 @@ app.include_router(conversation_router)
 app.include_router(workspace_router)
 app.include_router(log_router)
 app.include_router(skill_router)
-app.include_router(mcp_router)
 
 
 @app.get("/api/health")

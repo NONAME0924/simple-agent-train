@@ -3,7 +3,6 @@
 .env.*
 !.env.example
 launcher.ini
-mcp.json
 .agent-setup.lock
 secrets/
 .secrets/

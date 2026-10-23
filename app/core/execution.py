@@ -58,10 +58,14 @@ async def execute_call(session_id, name, arguments, allowed, *, mode, sdd_saved,
         log("tool.failed", level=40, exc_info=True, tool=name, function=function,
             arguments=arguments, ok=False, duration=time.perf_counter() - started)
         if isinstance(error, ValidationError):
-            details = "；".join(f"{'.'.join(map(str, item['loc']))}: {item['msg']}"
+            details = "；".join(f"{'.'.join(map(str, item['loc']))}: " +
+                               {"missing": "缺少必要欄位", "extra_forbidden": "不支援的欄位"}.get(item["type"], item["msg"])
                                for item in error.errors(include_url=False))
+            required = [key for key, field in tool.arguments.model_fields.items() if field.is_required()]
             return ToolResult.failed(f"工具參數錯誤 ({name}): {details}。可用欄位："
-                                     + "、".join(tool.arguments.model_fields))
+                                     + "、".join(tool.arguments.model_fields)
+                                     + "。必要欄位：" + ("、".join(required) or "無")
+                                     + "。請依本輪 Schema 補齊或修正後重新呼叫；工具尚未執行。")
         return ToolResult.failed(f"工具執行失敗 ({name}): {error}")
 
     def sync_call(validated):
@@ -75,10 +79,12 @@ async def execute_call(session_id, name, arguments, allowed, *, mode, sdd_saved,
         if name not in allowed or tool is None:
             raise ValueError(f"目前模式（{mode}）未提供工具：{name}")
         if not isinstance(arguments, dict):
-            raise ValueError("工具參數必須是 JSON 物件。")
+            raise ValueError("工具參數必須是完整 JSON 物件；請依本輪 Schema 重新呼叫，不要只輸出說明文字。")
         if name == "finish_task" and mode == "plan" and not sdd_saved:
             raise ValueError("尚未保存 SDD，請先呼叫 save_sdd 保存三份文件。")
         validated = tool.validate(arguments)
+        if any(key in arguments for key in tool.aliases):
+            log("tool.arguments_normalized", tool=name, arguments=validated)
         if inspect.iscoroutinefunction(tool.func):
             return success(await tool.func(**validated))
         return await asyncio.to_thread(sync_call, validated)

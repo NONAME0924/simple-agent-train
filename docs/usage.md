@@ -47,6 +47,20 @@ app/
 
 核心入口：`app/core/agent.py`。工具的定義、Schema、驗證與結果型別集中在 `app/tools/registry.py`；內建工具清單在 `app/tools/__init__.py`，建立 Agent 時註冊一次。新增工具沿用 `tool_registry.register()`。
 
+檔案工具的主要參數：`read_workspace_file(path, start_line, end_line)`、`write_workspace_file(path, content)`、`edit_code_chunk(path, old_string, new_string)`。Schema 只展示主要名稱；相容別名由註冊清單明確定義：
+
+| 主要欄位 | 接受的舊名／常用別名 |
+| --- | --- |
+| `path` | `file_name`、`file_path`、`file` |
+| `old_string` | `target_code`、`oldText`、`old_text` |
+| `new_string` | `replacement_code`、`newText`、`new_text` |
+
+別名只適用於上述讀寫工具；原文與替換別名只適用於 edit_code_chunk。同時提供不同值會拒絕，不猜測優先順序；未知欄位與錯誤型別仍拒絕。Log 保留原始參數，使用別名時另記 `tool.arguments_normalized`；結案檔案清單也相容上述路徑名稱。
+
+局部修改的純文字匹配集中在 `app/tools/file_edit.py`：先精確匹配（包含重疊匹配的歧義檢查），找不到才依完整行容許換行與行尾空白差異；不忽略前導縮排。空白原文、無變更與多處匹配皆拒絕，空字串 new_string 可用來刪除區塊。找不到時提供重讀／搜尋指引，可能相近的區域最多顯示五行、每行 180 字，僅供定位，不自動套用。Python 保留寫入前的語法檢查，成功修改仍回傳 Diff；完整內容寫入仍會覆寫同名檔案，未增加 Code Mode。
+
+工具參數錯誤會列出缺少／不支援欄位、可用欄位及必要欄位，驗證未通過不執行工具。提示語要求依錯誤修正、重讀或搜尋；這是模型引導，不是新增硬性重試計數器。
+
 實作／對話模式用 finish_task 明確交付最終回答；普通文字只作進度或說明，不因「開始寫腳本」就結束。連續純文字最多補救兩次，仍未操作或結案則標為 no_tool_progress 並保留紀錄，不宣稱完成。一般問答可直接用 finish_task 回答，不強制建檔；預設 15 輪的可設定上限及額外統整仍保留。
 
 前端使用原有 JavaScript，不新增建置流程；腳本依 index.html 順序載入，共用狀態集中於 app.js。HTML 不再包含整份聊天與地圖程式。
@@ -135,6 +149,22 @@ log 分流到 `logs/projects/<專案ID>/agent.jsonl`、`logs/conversations/<對�
 ## Skill 執行與空回應診斷
 
 Skill 由 read_skill 載入工作說明，再依本輪實際提供的工具執行；技能名稱不代表存在同名函式。prompts/skills.md 只處理通用的技能／工具區分、資訊不足與環境假設；任務專屬流程、應詢問的欄位、製作方法及依賴由對應 Skill 定義，不放入共用提示語。原有 Skill 檔案不修改。
+
+Skill 附帶的 Python 腳本使用 `run_skill_script`，僅在實作／對話模式提供。它採用與 read_skill 相同的技能發現及同名覆蓋順位，要求 script 為該技能內存在的 `.py` 相對路徑；拒絕絕對路徑與解析後越界的符號連結。工作區內自建腳本仍使用 `run_python`，原本路徑限制保留。
+
+例如 Skill 中寫 `python scripts/thumbnail.py deck.pptx deck-thumbs`，工具參數為：
+
+```json
+{
+  "name": "pptx",
+  "script": "scripts/thumbnail.py",
+  "arguments": ["deck.pptx", "deck-thumbs"]
+}
+```
+
+arguments 可省略或傳空陣列，其他情況每個命令列參數各一項，檔名含空白也不另加引號；不經 shell。使用啟動 Agent 的 Python，以腳本原始絕對位置執行，保留同目錄模組／相對匯入資源的定位，並用 `-B` 避免產生匯入快取；不複製或改寫技能原檔。工作目錄固定為目前專案／對話工作區，腳本若透過目前目錄尋找技能資源，仍需依其介面提供明確路徑；不能保證任意外部腳本的目錄假設都相容。
+
+沿用背景工作：`background=true` 立即回傳工作 ID；預設前景等待 30 秒，wait_seconds 可設 1～60 秒，超時仍在背景執行，由 get_job／stop_job 及「執行」面板管理。Log 記錄工具參數、Skill 腳本位置、程序參數、工作目錄、退出碼及輸出；成功結案也收集工作區變更檔案。只提供單份 SKILL.md 的來源仍可能沒有腳本；額外套件、LibreOffice 等外部程式不會自動安裝。路徑限制只控制工具選擇的入口，不是 Python 程序的作業系統沙箱。
 
 `read_skill(name, resource="SKILL.md", start_line=1, end_line=0)` 預設讀開頭 60 行，長文件附最多 40 個章節標題及行號；end_line=0 表示從指定起點讀 60 行，可指定實際範圍，每次最多 200 行。章節索引略過 fenced code block 內的註解標題。已有足夠指引就執行；只有缺少細節時，才依章節行號或 resource 選讀，不以讀完整份為前提，也不預先讀整個技能目錄。
 

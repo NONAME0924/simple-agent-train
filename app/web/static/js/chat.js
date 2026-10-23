@@ -4,7 +4,8 @@ const toolTitles = {
   google_search: "網路搜尋", save_sdd: "建立規格", update_user_preference: "更新共用偏好", search_workspace_code: "搜尋程式",
   read_skill: "讀取 Skill", install_skill: "全域安裝 Skill", list_installed_skills: "查看 Skill 總表", get_workspace_code_map: "程式地圖", list_workspace_files: "瀏覽檔案",
   read_workspace_file: "讀取檔案", write_workspace_file: "寫入檔案", edit_code_chunk: "修改程式",
-  run_python: "執行 Python", search_history_memory: "搜尋記憶", read_web_page: "讀取網頁", finish_task: "整理結果"
+  run_python: "執行 Python", run_skill_script: "執行 Skill 腳本",
+  search_history_memory: "搜尋記憶", read_web_page: "讀取網頁", finish_task: "整理結果"
 };
 
 function imageUrl(session, imageId) {
@@ -169,7 +170,7 @@ async function sendMessage(options = {}) {
         renderImageGallery(record, event.images, session);
       }
       updateActivity();
-      if (visible() && ["run_python", "get_job", "stop_job"].includes(event.tool)) window.refreshRuntimePanel?.(false);
+      if (visible() && ["run_python", "run_skill_script", "get_job", "stop_job"].includes(event.tool)) window.refreshRuntimePanel?.(false);
       if (visible() && ["save_sdd", "update_task_status"].includes(event.tool)) window.refreshProjectTools?.(true);
       if (event.tool === "install_skill" && event.ok && !document.getElementById("panel-skills").hidden) window.refreshSkillPanel?.();
     } else if (event.type === "progress" || event.type === "content") {

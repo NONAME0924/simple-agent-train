@@ -1,5 +1,6 @@
 from app.logging_setup import log
 from app.tools.registry import ToolResult
+from app.tools.file_edit import replace_text
 import os
 import sys
 import ast
@@ -414,15 +415,15 @@ def list_workspace_files() -> str:
     return "【工作區檔案列表】:\n" + "\n".join(files_list)
 
 
-def read_workspace_file(file_name: str, start_line: int = 1, end_line: int = -1) -> str:
+def read_workspace_file(path: str, start_line: int = 1, end_line: int = -1) -> str:
     """
     【讀取工作區檔案】
     讀取工作區中指定檔案的內容。支援指定起始行 (start_line) 與結束行 (end_line) 進行局部精確閱讀。
     """
     try:
-        full_path = _resolve_safe_path(file_name)
+        full_path = _resolve_safe_path(path)
         if not os.path.exists(full_path):
-            return ToolResult.failed(f"錯誤：檔案 '{file_name}' 不存在於工作區中。")
+            return ToolResult.failed(f"檔案 '{path}' 不存在。請先用 list_workspace_files 確認目前工作區與檔名，再以 path 重新讀取。")
 
         from app.storage.document_import import read_workspace_text
         lines = read_workspace_text(full_path).splitlines(keepends=True)
@@ -434,26 +435,27 @@ def read_workspace_file(file_name: str, start_line: int = 1, end_line: int = -1)
         selected_lines = lines[s - 1:e]
         numbered_lines = [f"{i + s:4d} | {line}" for i, line in enumerate(selected_lines)]
 
-        header = f"=== 檔案: {file_name} (顯示第 {s} 至 {e} 行 / 共 {total_lines} 行) ===\n"
+        header = f"=== 檔案: {path} (顯示第 {s} 至 {e} 行 / 共 {total_lines} 行) ===\n"
         return header + "".join(numbered_lines)
     except Exception as e:
         log("workspace.exception", level=40, exc_info=True)
         return ToolResult.failed(f"讀取檔案失敗: {str(e)}")
 
 
-def write_workspace_file(file_name: str, content: str) -> str:
+def write_workspace_file(path: str, content: str) -> str:
     """
     【建立或覆寫工作區檔案】
-    在工作區中建立新檔案或覆寫既有檔案。若為 .py 檔案，寫入後會自動執行 AST 語法檢測，確保語法正確。
+    path 是檔案相對路徑，content 是完整內容；同名檔案會整份覆寫，小幅修改請用 edit_code_chunk。
+    .py 在寫入前檢查語法。缺少參數時請補齊，不把內容改放在聊天說明中。
     """
     try:
-        full_path = _resolve_safe_path(file_name)
+        full_path = _resolve_safe_path(path)
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
         # 若是 python 檔案，先驗證語法
-        if file_name.endswith(".py"):
+        if path.lower().endswith(".py"):
             try:
-                ast.parse(content, filename=file_name)
+                ast.parse(content, filename=path)
             except SyntaxError as e:
                 log("workspace.syntax_failed", level=40, exc_info=True)
                 return ToolResult.failed(f"語法檢查未通過，取消寫入！錯誤 (第 {e.lineno} 行): {e.msg}\n請修正後再次嘗試。")
@@ -462,40 +464,34 @@ def write_workspace_file(file_name: str, content: str) -> str:
             f.write(content)
 
         line_count = len(content.splitlines())
-        return f"成功寫入檔案 '{file_name}' (共 {line_count} 行)！已通過安全與語法驗證。"
+        validation = "Python 語法檢查通過。" if path.lower().endswith(".py") else ""
+        return f"成功寫入檔案 '{path}' (共 {line_count} 行)。{validation}"
     except Exception as e:
         log("workspace.exception", level=40, exc_info=True)
         return ToolResult.failed(f"寫入檔案失敗: {str(e)}")
 
 
-def edit_code_chunk(file_name: str, target_code: str, replacement_code: str) -> str:
+def edit_code_chunk(path: str, old_string: str, new_string: str) -> str:
     """
-    【Claude Code 風格精準區塊替換】
-    安全替換檔案中特定的一小段代碼區塊。
-    target_code 必須在檔案中有唯一匹配項。替換後會自動驗證語法並產出 Diff 對比報告。
+    【唯一區塊替換】
+    path 是檔案路徑，old_string 是含上下文的原文，new_string 是替換文字（空字串代表刪除）。
+    先精確匹配，再容許換行與行尾空白差異；不忽略前導縮排，不接受多處匹配。
+    找不到時依錯誤提示重新讀取或搜尋，不重複猜測相同原文。Python 先檢查語法，成功回傳 Diff。
     """
     try:
-        full_path = _resolve_safe_path(file_name)
+        full_path = _resolve_safe_path(path)
         if not os.path.exists(full_path):
-            return ToolResult.failed(f"錯誤：目標檔案 '{file_name}' 不存在。")
+            return ToolResult.failed(f"目標檔案 '{path}' 不存在。請先用 list_workspace_files 確認路徑；建立新檔請用 write_workspace_file(path, content)。")
 
         with open(full_path, "r", encoding="utf-8") as f:
             original_content = f.read()
 
-        # 檢查 target_code 是否存在且唯一
-        count = original_content.count(target_code)
-        if count == 0:
-            return ToolResult.failed(f"替換失敗：在 '{file_name}' 中找不到完全相符的 target_code。請先使用 read_workspace_file 查閱準確代碼與縮排。")
-        elif count > 1:
-            return ToolResult.failed(f"替換失敗：在 '{file_name}' 中找到 {count} 處匹配項，存在歧義。請擴大 target_code 的上下文範圍使其具備唯一性。")
-
-        # 執行替換
-        new_content = original_content.replace(target_code, replacement_code, 1)
+        new_content, match = replace_text(original_content, old_string, new_string)
 
         # 若是 Python 檔案，做 AST 語法檢查
-        if file_name.endswith(".py"):
+        if path.lower().endswith(".py"):
             try:
-                ast.parse(new_content, filename=file_name)
+                ast.parse(new_content, filename=path)
             except SyntaxError as e:
                 log("workspace.syntax_failed", level=40, exc_info=True)
                 return ToolResult.failed(f"替換失敗 (語法校驗未通過)：修改後在第 {e.lineno} 行出現語法錯誤 ({e.msg})！已自動放棄修改以保證代碼完整。")
@@ -508,14 +504,15 @@ def edit_code_chunk(file_name: str, target_code: str, replacement_code: str) -> 
         diff_lines = list(difflib.unified_diff(
             original_content.splitlines(keepends=True),
             new_content.splitlines(keepends=True),
-            fromfile=f"a/{file_name}",
-            tofile=f"b/{file_name}",
+            fromfile=f"a/{path}",
+            tofile=f"b/{path}",
             n=2
         ))
         diff_str = "".join(diff_lines)
 
+        validation = "Python 語法檢查通過。" if path.lower().endswith(".py") else ""
         return (
-            f"成功修改 '{file_name}'！語法校驗合格。\n"
+            f"成功修改 '{path}'（{match}）。{validation}\n"
             f"【代碼變更對照 (Diff)】:\n```diff\n{diff_str}\n```"
         )
     except Exception as e:

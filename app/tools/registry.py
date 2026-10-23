@@ -19,17 +19,18 @@ class ToolResult(str):
 class Tool:
     """封裝可被 LLM 調用的工具"""
 
-    def __init__(self, func: Callable, name: str = None, description: str = None, modes: tuple = ("agent",)):
+    def __init__(self, func: Callable, name: str = None, description: str = None, modes: tuple = ("agent",), aliases=None):
         self.func = func
         self.name = name or func.__name__
         self.description = description or (func.__doc__ or "").strip()
         self.modes = modes
+        self.aliases = aliases or {}
         fields = {
             key: (param.annotation if param.annotation is not inspect.Parameter.empty else str,
                   param.default if param.default is not inspect.Parameter.empty else ...)
             for key, param in inspect.signature(func).parameters.items()
         }
-        # Schema 與執行驗證共用函式簽名；拒絕未知欄位及錯誤型別，不猜測參數名稱。
+        # Schema 只展示主要欄位；相容別名明確註冊，不猜測未知欄位或轉換型別。
         self.arguments = create_model(self.name + "Arguments",
             __config__=ConfigDict(extra="forbid", strict=True), **fields)
         self.schema = {
@@ -42,6 +43,14 @@ class Tool:
         }
 
     def validate(self, arguments):
+        arguments = dict(arguments)
+        for alias, field in self.aliases.items():
+            if alias not in arguments:
+                continue
+            value = arguments.pop(alias)
+            if field in arguments and (type(arguments[field]) is not type(value) or arguments[field] != value):
+                raise ValueError(f"參數衝突：{field} 與 {alias} 的值不同。請只保留 {field} 後重新呼叫。")
+            arguments[field] = value
         return self.arguments.model_validate(arguments).model_dump()
 
 
@@ -51,20 +60,20 @@ class ToolRegistry:
     def __init__(self):
         self._tools: Dict[str, Tool] = {}
 
-    def register(self, func: Callable = None, name: str = None, description: str = None, modes: tuple = ("agent",)):
+    def register(self, func: Callable = None, name: str = None, description: str = None, modes: tuple = ("agent",), aliases=None):
         """註冊工具；名稱、說明與可用模式同時供 Schema、提示語及執行限制使用。"""
         if func is None:
             # 作為有參數的裝飾器 @tool_registry.register(name="...", description="...")
             def decorator(f):
-                self._register_func(f, name, description, modes)
+                self._register_func(f, name, description, modes, aliases)
                 return f
             return decorator
         else:
-            self._register_func(func, name, description, modes)
+            self._register_func(func, name, description, modes, aliases)
             return func
 
-    def _register_func(self, func: Callable, name: str = None, description: str = None, modes: tuple = ("agent",)):
-        tool = Tool(func, name, description, modes)
+    def _register_func(self, func: Callable, name: str = None, description: str = None, modes: tuple = ("agent",), aliases=None):
+        tool = Tool(func, name, description, modes, aliases)
         self._tools[tool.name] = tool
 
     def get_schemas(self, mode: str = None) -> List[Dict[str, Any]]:

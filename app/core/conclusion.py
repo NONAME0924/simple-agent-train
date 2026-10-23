@@ -22,7 +22,8 @@ class RunSummary:
         if name == "finish_task" or (name == "read_skill" and result.ok):
             return
         self.records.append({"tool": name, "ok": result.ok,
-            "file": arguments.get("file_name") if isinstance(arguments, dict) else None,
+            "file": next((arguments[key] for key in ("path", "file_name", "file_path", "file") if key in arguments), None)
+                    if isinstance(arguments, dict) else None,
             "result": str(result)})
 
     def messages(self, request):
@@ -39,7 +40,7 @@ class RunSummary:
                 files.append(record["file"])
             elif record["tool"] == "save_sdd":
                 files.extend(f".specify/{name}.md" for name in ("spec", "plan", "tasks"))
-            elif record["tool"] == "run_python":
+            elif record["tool"] in {"run_python", "run_skill_script"}:
                 try:
                     job = json.loads(record["result"])
                     if job.get("status") == "completed":

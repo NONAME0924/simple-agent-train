@@ -1,6 +1,17 @@
 """本次執行的結案資料與簡短保底；不引用舊對話的工具結果。"""
 import json
+import re
 import httpx
+
+FINAL_MARKER = re.compile(r"\[final\]", re.IGNORECASE)
+
+
+def extract_final(content):
+    """純文字回應含 [final] 標記時，回傳去除標記後的最終回答；否則回傳 None。"""
+    if not FINAL_MARKER.search(content or ""):
+        return None
+    answer = FINAL_MARKER.sub("", content).strip()
+    return answer or None
 
 
 def failure_reason(error, stop_reason=""):

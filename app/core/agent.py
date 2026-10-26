@@ -6,7 +6,7 @@ import httpx
 from app.config import OLLAMA_BASE_URL, DEFAULT_MODEL, CONTEXT_TOKENS, OUTPUT_TOKENS, MODEL_READ_TIMEOUT, MAX_AUTONOMOUS_STEPS
 from app.storage.context_manager import ContextManager
 from app.core.execution import RunControl, call_details, execute_call
-from app.core.conclusion import RunSummary, failure_reason
+from app.core.conclusion import RunSummary, extract_final, failure_reason
 from app.core.intent import detect_mode
 from app.storage.jobs import job_manager
 from app.logging_setup import log, log_context, setup_logging
@@ -159,6 +159,13 @@ class ChatAgent:
                             stop_reason = "empty_response"
                             raise RuntimeError("模型未產生回答或工具呼叫，且本次的空回應恢復額度已用完。"
                                                "請在 Log 查看 model.end 與 run.empty_response 的結束原因及輸出用量。")
+                        final_text = extract_final(content) if mode == "agent" else None
+                        if final_text is not None:
+                            # 模型以 [final] 標記最終回答；不需再呼叫 finish_task。
+                            log("run.final_marker", step=step, **model_details)
+                            final_content = final_text
+                            scratchpad.append({"role": "assistant", "content": final_content})
+                            break
                         scratchpad.append({"role": "assistant", "content": content})
                         if mode == "plan" and not sdd_saved:
                             scratchpad.append({"role": "user", "content": "請先用 save_sdd 保存規格、方案與待辦，再交付；缺少資訊可明列假設。"})

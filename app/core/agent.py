@@ -90,8 +90,6 @@ class ChatAgent:
                     active_schemas = [] if finalizing else tool_registry.get_schemas(mode)
                     prefix = prompt_messages(os.getenv("DEFAULT_SYSTEM_PROMPT", load_prompt("system")),
                         mode, active_schemas, finalizing=finalizing, reasoning_level=reasoning_level) + ([] if finalizing else project)
-                    if mode == "agent" and text_only_rounds and not finalizing:
-                        prefix.append({"role": "system", "content": load_prompt("continue_task")})
                     if finalizing:
                         limit_reached = True
                         yield {"type": "run_state", "state": "running", "phase": "summarizing"}
@@ -114,6 +112,9 @@ class ChatAgent:
                         scratchpad.append({"role": "assistant", "content": final_content})
                         break
                     messages = prefix + prepared
+                    if mode == "agent" and text_only_rounds and not finalizing:
+                        # 上一輪是 assistant 純文字；必須以 user 訊息收尾，否則模型會把已結束的回合當成完成而直接 EOS（空回應）。
+                        messages.append({"role": "user", "content": load_prompt("continue_task")})
                     yield {"type": "context_usage", "estimated_tokens": context.measure(messages, active_schemas),
                            "input_budget": context.input_budget, "threshold": context.threshold, "compacted": compacted}
                     context.save(scratchpad)

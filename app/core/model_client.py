@@ -59,7 +59,7 @@ async def stream_model(client, base_url, model, messages, tools=(), options=None
                         await response.aclose()
                         yield {"type": "model_retry"}
                         log("model.empty_retry", level=30, model=model, think=think, **details)
-                        retry_messages = [{"role": "system", "content": load_prompt("empty_response")}] + messages
+                        retry_messages = messages + [{"role": "user", "content": load_prompt("empty_response")}]
                         async for event in stream_model(client, base_url, model, retry_messages, tools,
                                 options=options, think=think, retry_empty=False):
                             yield event

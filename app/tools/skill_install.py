@@ -124,11 +124,10 @@ def list_installed_skills() -> str:
 
 
 def install_skill(source_url: str, skill_path: str = "", ref: str = "") -> str:
-    """全域安裝使用者要求的 Skill，保留完整 scripts／references／assets，不覆寫既有技能。
-    先用 read_web_page 解析使用者提供的網站與安裝說明，找出公開 GitHub 倉庫／Skill 目錄、ZIP 或 SKILL.md 的下載網址後再呼叫。
-    skill_path 可指定技能名稱或來源中的相對目錄；多技能來源未指定時會回傳候選，不安裝全部。
-    ref 可指定 GitHub 分支／標籤／commit，含斜線的分支須填完整 ref。
-    本工具只安裝技能檔案，不執行網站的 shell 指令或自動安裝額外依賴。
+    """全域安裝使用者要求的 Skill（完整保留 scripts／references／assets，不覆寫既有技能）。
+    先用 read_web_page 找出公開 GitHub 目錄、ZIP 或 SKILL.md 的下載網址再呼叫。
+    skill_path 為技能名稱或來源內相對目錄，多技能來源未指定時回傳候選；ref 為分支／標籤／commit（含斜線須填完整 ref）。
+    只安裝檔案，不執行網站的 shell 指令或安裝依賴。
     """
     source_url = source_url.strip()
     _public_url(source_url)

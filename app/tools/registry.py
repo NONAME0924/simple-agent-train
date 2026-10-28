@@ -4,6 +4,18 @@ from typing import Dict, List, Any, Callable
 from pydantic import ConfigDict, create_model
 
 
+def _compact_schema(schema, in_properties=False):
+    """送給模型前移除 pydantic 自動加的 title 與 additionalProperties；不動名為 title 的欄位。"""
+    if isinstance(schema, dict):
+        return {key: _compact_schema(value, key == "properties" and not in_properties)
+                for key, value in schema.items()
+                if not (not in_properties and key in ("title", "additionalProperties")
+                        and not isinstance(value, dict))}
+    if isinstance(schema, list):
+        return [_compact_schema(item) for item in schema]
+    return schema
+
+
 class ToolResult(str):
     def __new__(cls, content, ok=True, images=()):
         result = super().__new__(cls, str(content))
@@ -22,7 +34,7 @@ class Tool:
     def __init__(self, func: Callable, name: str = None, description: str = None, modes: tuple = ("agent",), aliases=None):
         self.func = func
         self.name = name or func.__name__
-        self.description = description or (func.__doc__ or "").strip()
+        self.description = description or inspect.cleandoc(func.__doc__ or "")
         self.modes = modes
         self.aliases = aliases or {}
         fields = {
@@ -38,7 +50,7 @@ class Tool:
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.arguments.model_json_schema()
+                "parameters": _compact_schema(self.arguments.model_json_schema())
             }
         }
 

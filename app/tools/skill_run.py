@@ -10,12 +10,10 @@ from app.tools.history_memory import memory_session
 
 def run_skill_script(name: str, script: str, arguments: list[str] | None = None,
                      background: bool = False, wait_seconds: int = 30) -> str:
-    """執行已發現 Skill 內的 .py 腳本；先用 read_skill 了解用途及必要參數。
-    name 是 Skill 名稱，script 是相對該 Skill 的路徑，例如 scripts/thumbnail.py。
-    arguments 是字串陣列，每個參數一項，不含 python 或腳本路徑，也不需額外加引號。
-    使用 Agent 的 Python；輸入／輸出相對路徑以目前工作區為準，Skill 資源應依原始腳本位置存取。
-    不複製腳本或自動安裝依賴。background=True 立即回傳工作 ID；前景等待超時仍保留背景工作。
-    wait_seconds 為 1～60 秒，用 get_job 查詢、stop_job 停止。未要求時不主動執行測試。
+    """執行 Skill 內的 .py 腳本；先用 read_skill 了解用途與參數。
+    script 是相對該 Skill 的路徑（如 scripts/thumbnail.py）；arguments 每項一個字串，不含 python 或腳本路徑。
+    輸入／輸出路徑以目前工作區為準，不複製腳本、不自動安裝依賴。
+    background=True 立即回傳工作 ID；wait_seconds 為 1～60，逾時保留背景工作，用 get_job／stop_job 管理。
     """
     if not 1 <= wait_seconds <= 60:
         raise ValueError("wait_seconds 必須為 1～60 秒。")

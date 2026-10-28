@@ -15,11 +15,9 @@ def prompt_messages(default_prompt: str, mode: str, tool_schemas=(), *, finalizi
     messages = [{"role": "system", "content": default_prompt},
                 {"role": "system", "content": load_prompt("reasoning") + "\n" + load_prompt(f"reasoning/{reasoning_level}")}]
     tools = [schema["function"] for schema in tool_schemas]
-    catalog = "\n".join(
-        f"- {tool['name']}：{(tool.get('description') or '未提供說明').splitlines()[0]}"
-        for tool in tools
-    )
-    messages.append({"role": "system", "content": "本輪可用工具（參數依 Schema）：\n" + (catalog or "本輪不提供工具，請交付目前成果。")})
+    if not tools:
+        # 有工具時 schema 已含名稱與說明，不重複列目錄。
+        messages.append({"role": "system", "content": "本輪不提供工具，請交付目前成果。"})
     if any(tool["name"] == "read_skill" for tool in tools):
         messages.append({"role": "system", "content": load_prompt("skills")})
         skills = skill_registry.catalog()

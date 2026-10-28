@@ -7,15 +7,12 @@ from urllib.parse import urljoin
 
 
 def read_web_page(url: str, max_chars: int = 4000) -> str:
-    """閱讀指定網頁，保留安裝指令區塊及連結網址；也支援純文字／Markdown。
-
-    當遇到以下情況時調用此工具：
-    1. 使用者提供了一個具體網址，要求深入閱讀、分析或總結該文章內容。
-    2. 透過 google_search 找到關鍵網頁後，需要深入獲取該文章的完整內文或技術細節。
+    """閱讀指定網頁（保留安裝指令區塊與連結，也支援純文字／Markdown）。
+    使用者給了網址，或搜尋後需要完整內文時使用。
 
     Args:
-        url: 目標網頁的完整 URL (包含 http:// 或 https://)
-        max_chars: 讀取字數上限，預設 4000 字
+        url: 完整網址（http:// 或 https://）。
+        max_chars: 讀取字數上限，預設 4000。
     """
     if not url or not url.strip().startswith(("http://", "https://")):
         return ToolResult.failed(f"請提供以 http:// 或 https:// 開頭的有效網址，您輸入的是：{url}")

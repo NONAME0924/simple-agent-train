@@ -49,3 +49,5 @@ __pycache__/
 /skills/*
 !/skills/README.md
 !/skills/README.en.md
+# 本專案自帶的 MCP Skill（不含第三方內容）需要提交。
+!/skills/mcp/

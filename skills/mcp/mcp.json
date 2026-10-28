@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "blender": {
+      "description": "Blender 官方 Blender Lab MCP（需 Blender 5.1+，並在附加元件偏好設定啟動橋接）。",
+      "enabled": true,
+      "command": "blender-mcp",
+      "args": [],
+      "connect_timeout": 60,
+      "timeout": 120
+    }
+  }
+}

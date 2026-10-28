@@ -4,7 +4,7 @@ import os
 from typing import AsyncGenerator, Dict, Optional
 import httpx
 from app.config import OLLAMA_BASE_URL, DEFAULT_MODEL, CONTEXT_TOKENS, OUTPUT_TOKENS, MODEL_READ_TIMEOUT, MAX_AUTONOMOUS_STEPS
-from app.storage.context_manager import ContextManager
+from app.storage.context_manager import ContextManager, estimate_tokens
 from app.core.execution import RunControl, call_details, execute_call
 from app.core.conclusion import RunSummary, extract_final, failure_reason
 from app.core.intent import detect_mode
@@ -117,6 +117,9 @@ class ChatAgent:
                         messages.append({"role": "user", "content": load_prompt("continue_task")})
                     yield {"type": "context_usage", "estimated_tokens": context.measure(messages, active_schemas),
                            "input_budget": context.input_budget, "threshold": context.threshold, "compacted": compacted}
+                    log("context.breakdown", step=step, system_and_project=estimate_tokens(prefix),
+                        tools=estimate_tokens(active_schemas), history=estimate_tokens(prepared),
+                        estimated_total=context.measure(messages, active_schemas), threshold=context.threshold)
                     context.save(scratchpad)
                     async for state in control.checkpoint():
                         yield state

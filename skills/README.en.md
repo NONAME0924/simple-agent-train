@@ -9,7 +9,7 @@ Git keeps only these two READMEs and the bundled `mcp` Skill; other Skill conten
 | Skill | Source and differences |
 | --- | --- |
 | `sdd` | The author's [spec-driven-development](https://github.com/NONAME0924/spec-driven-development); locally adapted to three files. |
-| `mcp` | Ships with this project and is committed; connects MCP servers as a Skill. See [skills/mcp](mcp/README.en.md). |
+| `mcp` | Ships with this project and is committed; MCP package system (install/remove/disable packages; the `blender` package ships by default). See [skills/mcp](mcp/README.en.md). |
 | `pptx` | [Anthropic Skills](https://github.com/anthropics/skills/tree/main/skills/pptx); its restrictive LICENSE.txt is retained. |
 
 Loading reads SKILL.md or a requested resource; directory READMEs are not system prompts. References are read on demand and dependencies are not automatically installed. The source repository omits Skill contents; prepare locally licensed Skills as needed. Copying the full upstream SDD does not reproduce the compact local adaptation. See [attribution and license scope](../docs/third-party.en.md).

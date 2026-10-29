@@ -49,5 +49,10 @@ __pycache__/
 /skills/*
 !/skills/README.md
 !/skills/README.en.md
-# 本專案自帶的 MCP Skill（不含第三方內容）需要提交。
+# 本專案自帶的 MCP 套件系統需要提交；套件預設只提交 blender，其他本機安裝的套件與 local.json 不提交。
 !/skills/mcp/
+/skills/mcp/local.json
+/skills/mcp/packages/*
+!/skills/mcp/packages/README.md
+!/skills/mcp/packages/README.en.md
+!/skills/mcp/packages/blender/

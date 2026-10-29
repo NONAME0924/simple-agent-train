@@ -1,0 +1,21 @@
+{
+  "name": "blender",
+  "version": "1.0.0",
+  "description": "Blender 3D（Blender Lab 橋接）。專案預設安裝，可停用、移除或替換。",
+  "guide": "GUIDE.md",
+  "server": {
+    "command": "${PYTHON}",
+    "args": ["-B", "${PACKAGE_DIR}/server.py"],
+    "env": {
+      "BLENDER_HOST": "127.0.0.1",
+      "BLENDER_PORT": "9876",
+      "BLENDER_PATH": "${BLENDER_PATH}",
+      "DISPLAY": "${DISPLAY}",
+      "XAUTHORITY": "${XAUTHORITY}",
+      "WAYLAND_DISPLAY": "${WAYLAND_DISPLAY}",
+      "XDG_RUNTIME_DIR": "${XDG_RUNTIME_DIR}"
+    },
+    "connect_timeout": 20,
+    "timeout": 120
+  }
+}

@@ -28,6 +28,8 @@ function showLogin(message = "") {
   currentUser = null;
   document.getElementById("btn-account").hidden = true;
   document.getElementById("btn-finance").hidden = true;
+  document.getElementById("rail-admin").hidden = true;
+  window.setAppView?.("chat");
   document.getElementById("auth-error").textContent = message;
   document.getElementById("auth-error").style.color = "";
   document.querySelectorAll(".modal-overlay").forEach(modal => modal.classList.add("hidden"));
@@ -40,7 +42,10 @@ function applyUser(user) {
   authOverlay.classList.add("hidden");
   const button = document.getElementById("btn-account");
   button.hidden = false;
-  button.textContent = user.username + (user.role === "admin" ? "（管理員）" : "") + (user.is_treasurer ? "（會計）" : "");
+  button.textContent = Array.from(user.username).slice(0, 2).join("").toUpperCase();
+  button.title = user.username + (user.role === "admin" ? "（管理員）" : "") + (user.is_treasurer ? "（會計）" : "");
+  button.setAttribute("aria-label", `帳號：${button.title}`);
+  document.getElementById("rail-admin").hidden = user.role !== "admin";
   // 系統日誌只有管理員能看。
   const system = document.querySelector('#logs-scope option[value="system"]');
   if (system) system.hidden = system.disabled = user.role !== "admin";

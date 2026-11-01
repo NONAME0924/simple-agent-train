@@ -29,6 +29,7 @@
       <h1 id="current-chat-title">新對話</h1>
       <button id="btn-toggle-workspace" class="text-button panel-toggle" aria-controls="workspace-drawer" aria-expanded="false">專案面板</button>
       <button id="theme-toggle" class="text-button" onclick="toggleTheme()" aria-label="切換顯示模式">暗色</button>
+      <button id="btn-finance" class="text-button" aria-haspopup="dialog" hidden>報帳<span id="finance-badge" class="badge" hidden></span></button>
       <button id="btn-account" class="text-button" aria-haspopup="dialog" hidden></button>
     </header>
     <main id="chat-container" class="chat-container" aria-label="聊天內容">
@@ -231,6 +232,49 @@
       </div>
     </div>
   </div>
+  <div id="finance-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="finance-title">
+    <div class="modal-sheet admin-sheet">
+      <div class="modal-header"><h2 id="finance-title">實驗室報帳</h2>
+        <button id="fin-tab-mine" class="map-tab is-active">我的請款</button>
+        <button id="fin-tab-review" class="map-tab" hidden>全部請款</button>
+        <button id="fin-tab-fund" class="map-tab" hidden>經費</button>
+        <button class="text-button" data-close="finance-modal">關閉</button></div>
+      <div class="modal-body">
+        <p id="fin-status" class="help-text" role="status"></p>
+        <section id="fin-mine">
+          <form id="fin-form" class="fin-form">
+            <h3>新增請款</h3>
+            <label>金額（新台幣，整數）<input id="fin-amount" type="number" min="1" max="100000000" step="1" inputmode="numeric" required></label>
+            <label>事由<textarea id="fin-description" rows="2" maxlength="500" required placeholder="買了什麼、用在哪個計畫"></textarea></label>
+            <label>收據或單據照片（1～4 張，PNG／JPEG／WebP，每張 10 MiB）<input id="fin-files" type="file" accept="image/png,image/jpeg,image/webp" multiple required></label>
+            <div id="fin-previews" class="fin-thumbs"></div>
+            <div class="button-row"><button class="primary-button">送出請款</button></div>
+          </form>
+          <h3>我送出的請款</h3>
+          <div id="fin-my-list"></div>
+        </section>
+        <section id="fin-review" hidden>
+          <div class="button-row">
+            <select id="fin-filter" aria-label="請款狀態"><option value="pending">待審核</option><option value="">全部</option><option value="approved">已通過</option><option value="rejected">已退回</option><option value="withdrawn">已撤回</option></select>
+            <button id="fin-refresh" class="text-button">重新整理</button>
+          </div>
+          <div id="fin-review-list"></div>
+        </section>
+        <section id="fin-fund" hidden>
+          <div id="fin-summary" class="fin-summary"></div>
+          <form id="fin-adjust" class="button-row" hidden>
+            <select id="fin-adjust-kind" aria-label="加或減"><option value="add">加錢</option><option value="subtract">減錢</option></select>
+            <input id="fin-adjust-amount" type="number" min="1" step="1" placeholder="金額" required aria-label="金額">
+            <input id="fin-adjust-note" placeholder="備註（必填，例如：年度經費撥入）" maxlength="300" required aria-label="備註">
+            <button class="secondary-button">送出</button>
+          </form>
+          <p id="fin-readonly" class="help-text" hidden>管理員只能檢視，經費由會計增減。</p>
+          <h3>流水帳</h3>
+          <div id="fin-ledger"></div>
+        </section>
+      </div>
+    </div>
+  </div>
   <div id="members-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="members-title">
     <div class="modal-sheet account-sheet">
       <div class="modal-header"><h2 id="members-title">分享專案</h2>
@@ -294,5 +338,6 @@
   <script src="/static/js/log-panel.js"></script>
   <script src="/static/js/skill-panel.js"></script>
   <script src="/static/js/account.js"></script>
+  <script src="/static/js/finance.js"></script>
 </body>
 </html>

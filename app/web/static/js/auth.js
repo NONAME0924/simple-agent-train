@@ -27,6 +27,7 @@ function setAuthMode(register) {
 function showLogin(message = "") {
   currentUser = null;
   document.getElementById("btn-account").hidden = true;
+  document.getElementById("btn-finance").hidden = true;
   document.getElementById("auth-error").textContent = message;
   document.getElementById("auth-error").style.color = "";
   document.querySelectorAll(".modal-overlay").forEach(modal => modal.classList.add("hidden"));
@@ -39,11 +40,13 @@ function applyUser(user) {
   authOverlay.classList.add("hidden");
   const button = document.getElementById("btn-account");
   button.hidden = false;
-  button.textContent = user.role === "admin" ? `${user.username}（管理員）` : user.username;
+  button.textContent = user.username + (user.role === "admin" ? "（管理員）" : "") + (user.is_treasurer ? "（會計）" : "");
   // 系統日誌只有管理員能看。
   const system = document.querySelector('#logs-scope option[value="system"]');
   if (system) system.hidden = system.disabled = user.role !== "admin";
   document.getElementById("btn-admin").hidden = user.role !== "admin";
+  document.getElementById("btn-finance").hidden = false;
+  window.refreshFinanceBadge?.();
 }
 
 async function startAfterLogin(callback) {

@@ -57,7 +57,7 @@ A separate Windows distribution may include `runtime/` and `AI-Agent.exe`. These
 | `AUTH_SESSION_DAYS` | Days a login stays valid | `7` |
 | `AUTH_COOKIE_SECURE` | Set to `1` when served behind HTTPS | `0` |
 
-The web UI requires login. New users request an account on the login page and an admin approves it; conversations are separated per account, projects can be shared with other accounts, and admins can view every conversation and manage accounts. See [docs/usage.md](docs/usage.md) (Chinese).
+The web UI requires login. New users request an account on the login page and an admin approves it; conversations are separated per account, projects can be shared with other accounts, and admins can view every conversation and manage accounts. The page also has lab expense reimbursement: members submit requests with receipt photos, a treasurer approves or rejects them and adjusts the fund, and admins can view everything. See [docs/usage.md](docs/usage.md) (Chinese).
 
 Existing environment variables override `.env`. The current output limit is capped at one quarter of the configured context. Context compaction starts at 80% of the available input budget. Actual capacity and speed depend on the model and hardware.
 

@@ -34,12 +34,14 @@
       }), label === "刪除" || label === "停用" ? "text-button danger" : "text-button");
       list.replaceChildren(...users.map(user => {
         const row = document.createElement("div"); row.className = "admin-row";
-        row.append(text("strong", user.username), text("span", `${user.role === "admin" ? "管理員" : "一般"}・${statusLabel[user.status]}・${user.session_count} 對話・${user.project_count} 專案`, "help-text"));
+        row.append(text("strong", user.username), text("span", `${user.role === "admin" ? "管理員" : "一般"}${user.is_treasurer ? "・會計" : ""}・${statusLabel[user.status]}・${user.session_count} 對話・${user.project_count} 專案`, "help-text"));
         const actions = document.createElement("span"); actions.className = "button-row";
         const base = `/api/admin/users/${encodeURIComponent(user.id)}`;
         if (user.status === "pending") actions.append(act(user, "核准", `${base}/status/active`), act(user, "拒絕", base, "DELETE", undefined, `拒絕並刪除 ${user.username} 的申請？`));
         if (user.status === "active" && user.id !== currentUser.id) actions.append(act(user, "停用", `${base}/status/disabled`, "POST", undefined, `停用 ${user.username}？對方會立即登出，資料保留。`));
         if (user.status === "disabled") actions.append(act(user, "啟用", `${base}/status/active`), act(user, "刪除", base, "DELETE", undefined, `永久刪除帳號 ${user.username}？（有對話或專案的帳號無法刪除）`));
+        if (user.status === "active")
+          actions.append(act(user, user.is_treasurer ? "取消會計" : "設為會計", `${base}/treasurer`, "POST", { value: !user.is_treasurer }));
         if (user.status === "active" && user.id !== currentUser.id)
           actions.append(act(user, user.role === "admin" ? "降為一般" : "設為管理員", `${base}/role`, "POST", { role: user.role === "admin" ? "user" : "admin" }));
         actions.append(button("重設密碼", () => guard(status, async () => {

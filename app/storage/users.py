@@ -65,7 +65,9 @@ def _hash_token(token):
 
 def public(row):
     """不含密碼雜湊的使用者資料。"""
-    return {k: row[k] for k in ("id", "username", "role", "status", "created_at", "last_login_at")}
+    item = {k: row[k] for k in ("id", "username", "role", "status", "created_at", "last_login_at")}
+    item["is_treasurer"] = bool(row["is_treasurer"])
+    return item
 
 
 class Throttle:
@@ -225,6 +227,15 @@ class UserManager:
         log("auth.role_changed", user_id=user_id, role=role, actor=actor_id)
         return self.get(user_id)
 
+    def set_treasurer(self, user_id, value, actor_id):
+        user = self._require(user_id)
+        if value and user["status"] != "active":
+            raise AuthError("只能指派使用中的帳號擔任會計。", 409)
+        with self._conn() as conn:
+            conn.execute("UPDATE users SET is_treasurer=? WHERE id=?", (1 if value else 0, user_id))
+        log("auth.treasurer_changed", user_id=user_id, value=bool(value), actor=actor_id)
+        return self.get(user_id)
+
     def set_password(self, user_id, password, keep_token=None):
         password = check_password(password)
         self._require(user_id)
@@ -239,10 +250,10 @@ class UserManager:
             raise AuthError("不能刪除自己的帳號。", 409)
         self._keep_one_admin(user, "刪除")
         with self._conn() as conn:
-            owned = conn.execute("SELECT (SELECT COUNT(*) FROM chat_sessions WHERE owner_id=?)+(SELECT COUNT(*) FROM projects WHERE owner_id=?)",
-                                 (user_id, user_id)).fetchone()[0]
+            owned = conn.execute("""SELECT (SELECT COUNT(*) FROM chat_sessions WHERE owner_id=?)+(SELECT COUNT(*) FROM projects WHERE owner_id=?)
+                +(SELECT COUNT(*) FROM expense_requests WHERE user_id=?)""", (user_id, user_id, user_id)).fetchone()[0]
             if owned:
-                raise AuthError("這個帳號仍有對話或專案；請改用「停用」，資料會保留。", 409)
+                raise AuthError("這個帳號仍有對話、專案或請款紀錄；請改用「停用」，資料會保留。", 409)
             conn.execute("DELETE FROM users WHERE id=?", (user_id,))
         log("auth.user_deleted", user_id=user_id, username=user["username"], actor=actor_id)
 

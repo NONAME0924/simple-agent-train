@@ -232,3 +232,25 @@ textarea { resize:vertical; }
 .admin-view { margin-top:12px; padding:10px; border:1px solid var(--line); border-radius:7px; background:var(--surface); }
 .admin-message pre { margin:2px 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
 .project-owner-tag { font-size:11px; color:var(--muted); margin-left:4px; }
+
+/* 報帳 */
+.badge { display:inline-block; min-width:16px; margin-left:4px; padding:0 5px; border-radius:8px; background:var(--danger); color:#fff; font-size:11px; line-height:16px; text-align:center; }
+.fin-form { display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface); }
+.fin-thumbs, .fin-photos { display:flex; flex-wrap:wrap; gap:8px; }
+.fin-thumbs img, .fin-photos img { width:84px; height:84px; object-fit:cover; border:1px solid var(--line); border-radius:6px; cursor:zoom-in; background:var(--surface); }
+.fin-item { padding:10px 0; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
+.fin-item header { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
+.fin-amount { font-weight:600; font-variant-numeric:tabular-nums; }
+.fin-tag { font-size:11px; padding:1px 7px; border:1px solid var(--line); border-radius:9px; color:var(--muted); }
+.fin-tag.pending { color:var(--accent); border-color:var(--accent); }
+.fin-tag.approved { color:#2f7d4f; border-color:#2f7d4f; }
+.fin-tag.rejected { color:var(--danger); border-color:var(--danger); }
+.fin-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.fin-summary div { padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface); }
+.fin-summary strong { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
+.fin-summary .negative strong { color:var(--danger); }
+.fin-row { display:grid; grid-template-columns:150px 1fr auto; gap:4px 12px; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; }
+.fin-row .plus { color:#2f7d4f; } .fin-row .minus { color:var(--danger); }
+.fin-viewer { position:fixed; inset:0; z-index:120; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.75); }
+.fin-viewer img { max-width:94vw; max-height:92vh; }
+@media (max-width:600px) { .fin-summary { grid-template-columns:1fr; } .fin-row { grid-template-columns:1fr auto; } }

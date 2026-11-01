@@ -106,6 +106,15 @@ def admin_set_role(user_id: str, data: RoleChange, request: Request):
     return public(_run(lambda: user_manager.set_role(user_id, data.role, request.state.user["id"])))
 
 
+class TreasurerChange(BaseModel):
+    value: bool
+
+
+@router.post("/api/admin/users/{user_id}/treasurer")
+def admin_set_treasurer(user_id: str, data: TreasurerChange, request: Request):
+    return public(_run(lambda: user_manager.set_treasurer(user_id, data.value, request.state.user["id"])))
+
+
 @router.post("/api/admin/users/{user_id}/password")
 def admin_reset_password(user_id: str, data: NewPassword):
     _run(lambda: user_manager.set_password(user_id, data.password))

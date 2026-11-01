@@ -81,6 +81,21 @@ class FinanceManager:
         return self.get_request(request_id)
 
     # ---------- 審核（會計） ----------
+    def adjust_request_amount(self, request_id, amount, note, actor):
+        """會計調整審核中請款的金額；原申請金額與調整原因保留給申請人看。"""
+        amount, note = _amount(amount), _text(note, "調整原因", 300)
+        with self._conn() as conn:
+            row = conn.execute("SELECT amount, original_amount, status FROM expense_requests WHERE id=?", (request_id,)).fetchone()
+            if not row:
+                raise FinanceError("找不到這筆請款。", 404)
+            if row["status"] != "pending":
+                raise FinanceError("只能調整審核中的請款金額。", 409)
+            original = row["original_amount"] if row["original_amount"] is not None else row["amount"]
+            conn.execute("UPDATE expense_requests SET amount=?, original_amount=?, adjust_note=? WHERE id=?",
+                         (amount, None if amount == original else original, "" if amount == original else note, request_id))
+        log("finance.request_amount_adjusted", request_id=request_id, actor=actor["id"], before=row["amount"], after=amount)
+        return self.get_request(request_id)
+
     def approve(self, request_id, actor, force=False):
         conn = self._conn()
         try:

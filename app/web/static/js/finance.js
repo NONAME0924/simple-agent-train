@@ -39,8 +39,10 @@
     const item = el("div", undefined, "fin-item");
     const head = el("header");
     head.append(el("span", money(request.amount), "fin-amount"), el("span", labels[request.status], `fin-tag ${request.status}`),
+      ...(request.original_amount ? [el("span", `原申請 ${money(request.original_amount)}`, "help-text")] : []),
       el("span", `${request.requester || ""}・${request.created_at}`, "help-text"));
     item.append(head, el("div", request.description), photos(request));
+    if (request.original_amount) item.append(el("div", `會計已調整金額：${request.adjust_note}`, "help-text"));
     if (request.status === "rejected") item.append(el("div", `退回原因：${request.reject_reason}（${request.decided_by_name || ""}）`, "danger"));
     if (request.status === "approved") item.append(el("div", `已通過，${request.decided_by_name || ""}・${request.decided_at}`, "help-text"));
     if (actions?.length) { const row = el("div", undefined, "button-row"); row.append(...actions); item.append(row); }
@@ -59,6 +61,12 @@
     const { requests } = await call(`/api/finance/requests${filter ? `?status=${filter}` : ""}`);
     byId("fin-review-list").replaceChildren(...(requests.length ? requests.map(request => card(request,
       request.status === "pending" && me.is_treasurer ? [
+        btn("調整金額", () => guard(async () => {
+          const value = prompt(`調整「${request.description}」的金額（目前 ${money(request.amount)}，新台幣整數）：`, request.amount);
+          if (value === null) return;
+          const note = prompt("調整原因（必填，申請人會看到）："); if (!note || !note.trim()) return;
+          await call(`/api/finance/requests/${request.id}/amount`, "POST", { amount: Number(value), note }); await loadReview();
+        })),
         btn("通過並扣款", () => guard(async () => {
           try { await call(`/api/finance/requests/${request.id}/approve`, "POST", { force: false }); }
           catch (error) {

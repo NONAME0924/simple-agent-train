@@ -68,6 +68,10 @@ class MemoryManager:
                 reject_reason TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT, decided_by_name TEXT
             )""")
+            expense_columns = {row["name"] for row in conn.execute("PRAGMA table_info(expense_requests)")}
+            if "original_amount" not in expense_columns:  # 會計調整過金額時，保留申請人原本填的數字。
+                conn.execute("ALTER TABLE expense_requests ADD COLUMN original_amount INTEGER")
+                conn.execute("ALTER TABLE expense_requests ADD COLUMN adjust_note TEXT NOT NULL DEFAULT ''")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_expense_user ON expense_requests(user_id, id DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_expense_status ON expense_requests(status, id DESC)")
             conn.execute("""CREATE TABLE IF NOT EXISTS fund_ledger (

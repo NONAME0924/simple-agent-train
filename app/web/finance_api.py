@@ -26,6 +26,11 @@ class Approve(BaseModel):
     force: bool = False
 
 
+class AmountChange(BaseModel):
+    amount: int
+    note: str = Field(max_length=400)
+
+
 class Adjust(BaseModel):
     kind: Literal["add", "subtract"]
     amount: int
@@ -134,6 +139,12 @@ def approve(request_id: int, request: Request, data: Approve = Approve()):
     actor = treasurer(request)
     item = _run(lambda: finance_manager.approve(request_id, actor, data.force))
     return {"request": item, "fund": finance_manager.summary()}
+
+
+@router.post("/api/finance/requests/{request_id}/amount")
+def change_amount(request_id: int, data: AmountChange, request: Request):
+    actor = treasurer(request)
+    return _run(lambda: finance_manager.adjust_request_amount(request_id, data.amount, data.note, actor))
 
 
 @router.post("/api/finance/requests/{request_id}/reject")

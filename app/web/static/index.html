@@ -29,6 +29,8 @@
       <h1 id="current-chat-title">新對話</h1>
       <button id="btn-toggle-workspace" class="text-button panel-toggle" aria-controls="workspace-drawer" aria-expanded="false">專案面板</button>
       <button id="theme-toggle" class="text-button" onclick="toggleTheme()" aria-label="切換顯示模式">暗色</button>
+      <button id="btn-finance" class="text-button" aria-haspopup="dialog" hidden>報帳<span id="finance-badge" class="badge" hidden></span></button>
+      <button id="btn-account" class="text-button" aria-haspopup="dialog" hidden></button>
     </header>
     <main id="chat-container" class="chat-container" aria-label="聊天內容">
       <div id="welcome-card" class="welcome">
@@ -177,6 +179,118 @@
     </div>
   </aside>
 
+  <div id="auth-overlay" class="auth-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <form id="auth-form" class="auth-card" autocomplete="on">
+      <h2 id="auth-title">登入 Agent 工作台</h2>
+      <label>帳號<input id="auth-username" name="username" autocomplete="username" maxlength="32" required></label>
+      <label>密碼<input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+      <p id="auth-hint" class="help-text">帳號 3～32 字，可用英數、底線、點與連字號；密碼至少 8 個字元。</p>
+      <p id="auth-error" class="runtime-error" role="alert"></p>
+      <div class="button-row">
+        <button id="auth-submit" class="primary-button">登入</button>
+        <button id="auth-switch" type="button" class="text-button">申請帳號</button>
+      </div>
+    </form>
+  </div>
+  <div id="account-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="account-title">
+    <div class="modal-sheet account-sheet">
+      <div class="modal-header"><h2 id="account-title">帳號</h2>
+        <button id="btn-admin" class="text-button" hidden>管理後台</button>
+        <button id="btn-logout" class="text-button">登出</button>
+        <button class="text-button" data-close="account-modal">關閉</button></div>
+      <form id="password-form" class="modal-body">
+        <h3>更改密碼</h3>
+        <label>目前的密碼<input id="pw-old" type="password" autocomplete="current-password" required></label>
+        <label>新密碼<input id="pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+        <p id="pw-status" class="help-text" role="status"></p>
+        <button class="primary-button">更改密碼</button>
+      </form>
+    </div>
+  </div>
+  <div id="admin-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+    <div class="modal-sheet admin-sheet">
+      <div class="modal-header"><h2 id="admin-title">管理後台</h2>
+        <button id="admin-tab-users" class="map-tab is-active">帳號</button>
+        <button id="admin-tab-sessions" class="map-tab">全部對話</button>
+        <button class="text-button" data-close="admin-modal">關閉</button></div>
+      <div class="modal-body">
+        <p id="admin-status" class="help-text" role="status"></p>
+        <section id="admin-users">
+          <form id="admin-create" class="button-row">
+            <input id="admin-new-name" placeholder="新帳號" maxlength="32" required aria-label="新帳號">
+            <input id="admin-new-password" type="password" placeholder="初始密碼（8 字以上）" minlength="8" required aria-label="初始密碼" autocomplete="new-password">
+            <select id="admin-new-role" aria-label="角色"><option value="user">一般使用者</option><option value="admin">管理員</option></select>
+            <button class="secondary-button">建立（直接啟用）</button>
+          </form>
+          <div id="admin-user-list"></div>
+        </section>
+        <section id="admin-sessions" hidden>
+          <p class="help-text">可檢視所有人的對話；管理員對他人的對話唯讀，只能刪除。</p>
+          <div id="admin-session-list"></div>
+          <div id="admin-session-view" class="admin-view hidden"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div id="finance-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="finance-title">
+    <div class="modal-sheet admin-sheet">
+      <div class="modal-header"><h2 id="finance-title">實驗室報帳</h2>
+        <button id="fin-tab-mine" class="map-tab is-active">我的請款</button>
+        <button id="fin-tab-review" class="map-tab" hidden>全部請款</button>
+        <button id="fin-tab-fund" class="map-tab" hidden>經費</button>
+        <button class="text-button" data-close="finance-modal">關閉</button></div>
+      <div class="modal-body">
+        <p id="fin-status" class="help-text" role="status"></p>
+        <section id="fin-mine">
+          <form id="fin-form" class="fin-form">
+            <h3>新增請款</h3>
+            <label>金額（新台幣，整數）<input id="fin-amount" type="number" min="1" max="100000000" step="1" inputmode="numeric" required></label>
+            <label>事由<textarea id="fin-description" rows="2" maxlength="500" required placeholder="買了什麼、用在哪個計畫"></textarea></label>
+            <label>收據或單據照片（1～4 張，PNG／JPEG／WebP，每張 10 MiB）<input id="fin-files" type="file" accept="image/png,image/jpeg,image/webp" multiple required></label>
+            <div id="fin-previews" class="fin-thumbs"></div>
+            <div class="button-row"><button class="primary-button">送出請款</button></div>
+          </form>
+          <h3>我送出的請款</h3>
+          <div id="fin-my-list"></div>
+        </section>
+        <section id="fin-review" hidden>
+          <div class="button-row">
+            <select id="fin-filter" aria-label="請款狀態"><option value="pending">待審核</option><option value="">全部</option><option value="approved">已通過</option><option value="rejected">已退回</option><option value="withdrawn">已撤回</option></select>
+            <button id="fin-refresh" class="text-button">重新整理</button>
+          </div>
+          <div id="fin-review-list"></div>
+        </section>
+        <section id="fin-fund" hidden>
+          <div id="fin-summary" class="fin-summary"></div>
+          <form id="fin-adjust" class="button-row" hidden>
+            <select id="fin-adjust-kind" aria-label="加或減"><option value="add">加錢</option><option value="subtract">減錢</option></select>
+            <input id="fin-adjust-amount" type="number" min="1" step="1" placeholder="金額" required aria-label="金額">
+            <input id="fin-adjust-note" placeholder="備註（必填，例如：年度經費撥入）" maxlength="300" required aria-label="備註">
+            <button class="secondary-button">送出</button>
+          </form>
+          <p id="fin-readonly" class="help-text" hidden>管理員只能檢視，經費由會計增減。</p>
+          <h3>流水帳</h3>
+          <div id="fin-ledger"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div id="members-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="members-title">
+    <div class="modal-sheet account-sheet">
+      <div class="modal-header"><h2 id="members-title">分享專案</h2>
+        <button class="text-button" data-close="members-modal">關閉</button></div>
+      <div class="modal-body">
+        <p class="help-text">成員可在這個專案內建立對話、檢視並接續所有對話，並共用專案檔案與記憶；只有擁有者能改名、刪除與管理成員。</p>
+        <form id="members-add" class="button-row">
+          <input id="members-username" placeholder="對方的帳號" maxlength="32" required aria-label="對方的帳號">
+          <button class="secondary-button">加入成員</button>
+        </form>
+        <p id="members-status" class="help-text" role="status"></p>
+        <div id="members-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="file-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-file-title">
     <div class="modal-sheet file-sheet">
       <div class="modal-header">
@@ -214,6 +328,7 @@
     </div>
   </div>
   <script src="/static/js/api.js"></script>
+  <script src="/static/js/auth.js"></script>
   <script src="/static/js/app.js"></script>
   <script src="/static/js/workspace.js"></script>
   <script src="/static/js/sessions.js"></script>
@@ -222,5 +337,7 @@
   <script src="/static/js/runtime-panel.js"></script>
   <script src="/static/js/log-panel.js"></script>
   <script src="/static/js/skill-panel.js"></script>
+  <script src="/static/js/account.js"></script>
+  <script src="/static/js/finance.js"></script>
 </body>
 </html>

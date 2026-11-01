@@ -45,6 +45,57 @@ class MemoryManager:
                 conn.execute("ALTER TABLE projects ADD COLUMN memory_version INTEGER NOT NULL DEFAULT 0")
             if "pinned_memory" not in project_columns:
                 conn.execute("ALTER TABLE projects ADD COLUMN pinned_memory TEXT NOT NULL DEFAULT ''")
+            if "owner_id" not in project_columns:
+                conn.execute("ALTER TABLE projects ADD COLUMN owner_id TEXT")
+            conn.execute("""CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user')),
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','active','disabled')),
+                created_at TEXT NOT NULL, last_login_at TEXT
+            )""")
+            if "is_treasurer" not in {row["name"] for row in conn.execute("PRAGMA table_info(users)")}:
+                conn.execute("ALTER TABLE users ADD COLUMN is_treasurer INTEGER NOT NULL DEFAULT 0")
+            # 實驗室公帳：請款單與只增不改的流水帳。請款人、操作人不設外鍵，帳號異動不會牽動帳務。
+            conn.execute("""CREATE TABLE IF NOT EXISTS expense_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                amount INTEGER NOT NULL CHECK(amount > 0),
+                description TEXT NOT NULL,
+                images TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','withdrawn')),
+                reject_reason TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT, decided_by_name TEXT
+            )""")
+            expense_columns = {row["name"] for row in conn.execute("PRAGMA table_info(expense_requests)")}
+            if "original_amount" not in expense_columns:  # 會計調整過金額時，保留申請人原本填的數字。
+                conn.execute("ALTER TABLE expense_requests ADD COLUMN original_amount INTEGER")
+                conn.execute("ALTER TABLE expense_requests ADD COLUMN adjust_note TEXT NOT NULL DEFAULT ''")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_expense_user ON expense_requests(user_id, id DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_expense_status ON expense_requests(status, id DESC)")
+            conn.execute("""CREATE TABLE IF NOT EXISTS fund_ledger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL CHECK(kind IN ('add','subtract','expense')),
+                amount INTEGER NOT NULL,
+                note TEXT NOT NULL,
+                request_id INTEGER,
+                actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )""")
+            for action in ("UPDATE", "DELETE"):
+                conn.execute(f"""CREATE TRIGGER IF NOT EXISTS fund_ledger_no_{action.lower()} BEFORE {action} ON fund_ledger
+                    BEGIN SELECT RAISE(ABORT, '流水帳只能新增，不能修改或刪除'); END""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS auth_tokens (
+                token_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL, expires_at TEXT NOT NULL
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS project_members (
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                added_at TEXT NOT NULL, PRIMARY KEY (project_id, user_id)
+            )""")
             # 1. 會話主表 (左側清單)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -59,6 +110,9 @@ class MemoryManager:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(chat_sessions)")}
             if "project_id" not in columns:
                 conn.execute("ALTER TABLE chat_sessions ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL")
+            if "owner_id" not in columns:
+                conn.execute("ALTER TABLE chat_sessions ADD COLUMN owner_id TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_owner ON chat_sessions(owner_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_project ON chat_sessions(project_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated ON chat_sessions(updated_at DESC);")
 
@@ -100,24 +154,59 @@ class MemoryManager:
     # 會話管理 (Sessions CRUD)
     # ==========================================
 
-    def list_projects(self) -> List[Dict]:
+    def list_projects(self, user_id: Optional[str] = None, include_all: bool = False) -> List[Dict]:
+        """不帶 user_id 回傳全部（內部用）；帶 user_id 只回傳自己的與被分享的，admin 可 include_all。"""
         with self._get_connection() as conn:
-            return [dict(row) for row in conn.execute("SELECT * FROM projects ORDER BY created_at DESC, id")]
+            rows = conn.execute("""SELECT p.*, o.username AS owner_name,
+                CASE WHEN p.owner_id IS ? THEN 'owner' ELSE 'member' END AS role
+                FROM projects p LEFT JOIN users o ON o.id = p.owner_id
+                WHERE ? OR ? IS NULL OR p.owner_id = ?
+                   OR EXISTS (SELECT 1 FROM project_members m WHERE m.project_id=p.id AND m.user_id=?)
+                ORDER BY p.created_at DESC, p.id""", (user_id, include_all, user_id, user_id, user_id)).fetchall()
+            return [dict(row) for row in rows]
+
+    def project_role(self, project_id: str, user_id: str) -> Optional[str]:
+        """'owner'、'member' 或 None。"""
+        with self._get_connection() as conn:
+            row = conn.execute("SELECT owner_id FROM projects WHERE id=?", (project_id,)).fetchone()
+            if not row:
+                return None
+            if row["owner_id"] == user_id:
+                return "owner"
+            member = conn.execute("SELECT 1 FROM project_members WHERE project_id=? AND user_id=?", (project_id, user_id)).fetchone()
+            return "member" if member else None
+
+    def list_members(self, project_id: str) -> List[Dict]:
+        with self._get_connection() as conn:
+            return [dict(r) for r in conn.execute("""SELECT u.id, u.username, m.added_at FROM project_members m
+                JOIN users u ON u.id=m.user_id WHERE m.project_id=? ORDER BY u.username""", (project_id,))]
+
+    def add_member(self, project_id: str, user_id: str) -> None:
+        with self._get_connection() as conn:
+            conn.execute("INSERT OR IGNORE INTO project_members VALUES (?,?,?)",
+                         (project_id, user_id, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        log("project.member_added", project_id=project_id, user_id=user_id)
+
+    def remove_member(self, project_id: str, user_id: str) -> bool:
+        with self._get_connection() as conn:
+            removed = conn.execute("DELETE FROM project_members WHERE project_id=? AND user_id=?", (project_id, user_id)).rowcount > 0
+        log("project.member_removed", project_id=project_id, user_id=user_id, ok=removed)
+        return removed
 
     def get_project(self, project_id: str) -> Optional[Dict]:
         with self._get_connection() as conn:
             row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
             return dict(row) if row else None
 
-    def save_project(self, project_id: str, name: str) -> Dict:
+    def save_project(self, project_id: str, name: str, owner_id: Optional[str] = None) -> Dict:
         name = name.strip()
         if not name or len(name) > 80:
             raise ValueError("專案名稱須為 1～80 個字。")
         with self._get_connection() as conn:
             conn.execute("""
-                INSERT INTO projects (id, name) VALUES (?, ?)
+                INSERT INTO projects (id, name, owner_id) VALUES (?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET name = excluded.name
-            """, (project_id, name))
+            """, (project_id, name, owner_id))
         log("project.saved", project_id=project_id, name=name)
         return self.get_project(project_id)
 
@@ -148,7 +237,8 @@ class MemoryManager:
         log("session.moved", session_id=session_id, project_id=project_id, ok=moved)
         return moved
 
-    def create_or_get_session(self, session_id: str, title: Optional[str] = None, project_id: Optional[str] = None) -> Dict:
+    def create_or_get_session(self, session_id: str, title: Optional[str] = None, project_id: Optional[str] = None,
+                              owner_id: Optional[str] = None) -> Dict:
         """建立或取得會話"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -161,19 +251,24 @@ class MemoryManager:
             default_title = title.strip() if title and title.strip() else "新對話"
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute(
-                "INSERT INTO chat_sessions (id, title, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                (session_id, default_title, project_id, now_str, now_str)
+                "INSERT INTO chat_sessions (id, title, project_id, created_at, updated_at, owner_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, default_title, project_id, now_str, now_str, owner_id)
             )
             conn.commit()
             log("session.created", session_id=session_id, project_id=project_id, title=default_title)
-            return {"id": session_id, "title": default_title, "project_id": project_id, "created_at": now_str, "updated_at": now_str}
+            return {"id": session_id, "title": default_title, "project_id": project_id, "created_at": now_str,
+                    "updated_at": now_str, "owner_id": owner_id}
 
-    def list_sessions(self) -> List[Dict]:
-        """取得所有會話清單（依最後活躍時間降序）"""
+    def list_sessions(self, user_id: Optional[str] = None, include_all: bool = False) -> List[Dict]:
+        """不帶 user_id 回傳全部（內部用）；帶 user_id 只回傳自己的與所屬專案內的，admin 可 include_all。"""
         with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM chat_sessions ORDER BY updated_at DESC")
-            return [dict(r) for r in cursor.fetchall()]
+            rows = conn.execute("""SELECT s.*, o.username AS owner_name FROM chat_sessions s
+                LEFT JOIN users o ON o.id = s.owner_id
+                WHERE ? OR ? IS NULL OR s.owner_id = ?
+                   OR s.project_id IN (SELECT id FROM projects WHERE owner_id = ?
+                        UNION SELECT project_id FROM project_members WHERE user_id = ?)
+                ORDER BY s.updated_at DESC""", (include_all, user_id, user_id, user_id, user_id)).fetchall()
+            return [dict(r) for r in rows]
 
     def get_session_messages(self, session_id: str) -> List[Dict]:
         """取得指定會話的所有純淨歷史訊息（供右側視窗載入）"""

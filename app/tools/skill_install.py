@@ -17,6 +17,7 @@ import httpx
 from app.core.skill_registry import GLOBAL_SKILL_DIR, INSTALL_RECORD, skill_metadata, skill_registry
 from app.config import APP_DIR
 from app.logging_setup import log
+from app.storage.identity import require_admin
 
 MAX_DOWNLOAD = 50 * 1024 * 1024
 MAX_EXPANDED = 100 * 1024 * 1024
@@ -129,6 +130,7 @@ def install_skill(source_url: str, skill_path: str = "", ref: str = "") -> str:
     skill_path 為技能名稱或來源內相對目錄，多技能來源未指定時回傳候選；ref 為分支／標籤／commit（含斜線須填完整 ref）。
     只安裝檔案，不執行網站的 shell 指令或安裝依賴。
     """
+    require_admin("安裝 Skill")
     source_url = source_url.strip()
     _public_url(source_url)
     download_url, selector = _source(source_url, skill_path.strip(), ref.strip())

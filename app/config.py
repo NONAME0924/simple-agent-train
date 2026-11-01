@@ -22,5 +22,13 @@ OUTPUT_TOKENS = min(CONTEXT_TOKENS // 4, max(512, int(os.getenv("AGENT_OUTPUT_TO
 COMPACT_RATIO = 0.8
 
 # 伺服器配置
-SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
+# 預設只開本機；0.0.0.0 會開放給同網路的所有裝置，請務必搭配帳號系統。
+SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1").strip() or "127.0.0.1"
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+
+# 帳號系統：首次啟動若沒有管理員，會用這組建立；兩者留空則產生隨機密碼並顯示一次。
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+AUTH_SESSION_DAYS = max(1, int(os.getenv("AUTH_SESSION_DAYS", "7")))
+# 使用 HTTPS（例如反向代理）時設為 1，Cookie 才會加上 Secure。
+AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "0").strip().lower() in {"1", "true", "yes"}

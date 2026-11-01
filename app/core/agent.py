@@ -17,6 +17,7 @@ from app.core.prompt import prompt_messages, load_prompt
 from app.tools import register_tools
 from app.tools.registry import tool_registry
 from app.tools.preferences import preference_source
+from app.storage.identity import current_user
 from app.storage.workspace import workspace_scope, session_workspace
 
 MAX_TEXT_ONLY_RECOVERIES = 2
@@ -48,7 +49,7 @@ class ChatAgent:
 
     async def stream_chat(self, session_id: str, user_message: str, model: Optional[str] = None,
                           mode: str = "auto", control: Optional[RunControl] = None, images=(),
-                          reasoning_level: str = "medium") -> AsyncGenerator[Dict, None]:
+                          reasoning_level: str = "medium", user: Optional[Dict] = None) -> AsyncGenerator[Dict, None]:
         control = control or self.start_run(session_id)
         model = model or self.default_model
         session = memory_manager.get_session(session_id)
@@ -56,6 +57,7 @@ class ChatAgent:
                                  "project_id": session["project_id"] if session else None})
         workspace_token = None
         preference_token = preference_source.set(user_message)
+        user_token = current_user.set(user)
         output_images = []
         context = ContextManager(session_id, model)
         summary = RunSummary()
@@ -267,4 +269,5 @@ class ChatAgent:
             if workspace_token is not None:
                 workspace_scope.reset(workspace_token)
             preference_source.reset(preference_token)
+            current_user.reset(user_token)
             log_context.reset(token)

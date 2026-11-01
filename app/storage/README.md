@@ -11,6 +11,9 @@
 | `document_import.py` | 以 Python 套件擷取文件文字，保存原檔與匯入紀錄。 |
 | `images.py` | 圖片驗證、縮放、儲存、引用及模型訊息轉換。 |
 | `jobs.py` | Python 子程序、背景狀態、輸出、停止及檔案變更紀錄。 |
+| `users.py` | 帳號、密碼雜湊、登入憑證、註冊審核與管理員啟動建立。 |
+| `finance.py` | 公帳請款單、審核與只增不改的流水帳。 |
+| `identity.py` | 目前任務所屬使用者與管理員權限檢查。 |
 | `memory.py` | SQLite 專案、對話、歷史搜尋及工作上下文儲存。 |
 | `plan_tasks.py` | 讀寫 tasks.md 勾選狀態與版本衝突檢查。 |
 | `project_memory.py` | 專案 L2 增量摘要、固定記憶與來源游標。 |

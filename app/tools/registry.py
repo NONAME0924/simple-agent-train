@@ -17,10 +17,11 @@ def _compact_schema(schema, in_properties=False):
 
 
 class ToolResult(str):
-    def __new__(cls, content, ok=True, images=()):
+    def __new__(cls, content, ok=True, images=(), sensitive=False):
         result = super().__new__(cls, str(content))
         result.ok = ok
         result.images = list(images)
+        result.sensitive = sensitive  # 敏感結果（如財務資料）不寫進 log
         return result
 
     @classmethod

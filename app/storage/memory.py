@@ -57,35 +57,6 @@ class MemoryManager:
             )""")
             if "is_treasurer" not in {row["name"] for row in conn.execute("PRAGMA table_info(users)")}:
                 conn.execute("ALTER TABLE users ADD COLUMN is_treasurer INTEGER NOT NULL DEFAULT 0")
-            # 實驗室公帳：請款單與只增不改的流水帳。請款人、操作人不設外鍵，帳號異動不會牽動帳務。
-            conn.execute("""CREATE TABLE IF NOT EXISTS expense_requests (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL,
-                amount INTEGER NOT NULL CHECK(amount > 0),
-                description TEXT NOT NULL,
-                images TEXT NOT NULL DEFAULT '[]',
-                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','withdrawn')),
-                reject_reason TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT, decided_by_name TEXT
-            )""")
-            expense_columns = {row["name"] for row in conn.execute("PRAGMA table_info(expense_requests)")}
-            if "original_amount" not in expense_columns:  # 會計調整過金額時，保留申請人原本填的數字。
-                conn.execute("ALTER TABLE expense_requests ADD COLUMN original_amount INTEGER")
-                conn.execute("ALTER TABLE expense_requests ADD COLUMN adjust_note TEXT NOT NULL DEFAULT ''")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_expense_user ON expense_requests(user_id, id DESC)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_expense_status ON expense_requests(status, id DESC)")
-            conn.execute("""CREATE TABLE IF NOT EXISTS fund_ledger (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                kind TEXT NOT NULL CHECK(kind IN ('add','subtract','expense')),
-                amount INTEGER NOT NULL,
-                note TEXT NOT NULL,
-                request_id INTEGER,
-                actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )""")
-            for action in ("UPDATE", "DELETE"):
-                conn.execute(f"""CREATE TRIGGER IF NOT EXISTS fund_ledger_no_{action.lower()} BEFORE {action} ON fund_ledger
-                    BEGIN SELECT RAISE(ABORT, '流水帳只能新增，不能修改或刪除'); END""")
             conn.execute("""CREATE TABLE IF NOT EXISTS auth_tokens (
                 token_hash TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

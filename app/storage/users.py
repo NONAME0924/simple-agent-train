@@ -250,8 +250,9 @@ class UserManager:
             raise AuthError("不能刪除自己的帳號。", 409)
         self._keep_one_admin(user, "刪除")
         with self._conn() as conn:
-            owned = conn.execute("""SELECT (SELECT COUNT(*) FROM chat_sessions WHERE owner_id=?)+(SELECT COUNT(*) FROM projects WHERE owner_id=?)
-                +(SELECT COUNT(*) FROM expense_requests WHERE user_id=?)""", (user_id, user_id, user_id)).fetchone()[0]
+            from app.storage.finance import finance_manager  # 請款在獨立的 finance.db
+            owned = conn.execute("SELECT (SELECT COUNT(*) FROM chat_sessions WHERE owner_id=?)+(SELECT COUNT(*) FROM projects WHERE owner_id=?)",
+                                 (user_id, user_id)).fetchone()[0] + finance_manager.count_for_user(user_id)
             if owned:
                 raise AuthError("這個帳號仍有對話、專案或請款紀錄；請改用「停用」，資料會保留。", 409)
             conn.execute("DELETE FROM users WHERE id=?", (user_id,))

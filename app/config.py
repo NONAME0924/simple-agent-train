@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 # 原始資料位置不跟隨程式碼搬移，避免產生第二份資料庫或工作區。
 APP_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = APP_DIR / "data"
+FINANCE_DB_PATH = DATA_DIR / "finance.db"  # 公帳獨立資料庫，與對話的 memory.db 分開備份與管理
 WORKSPACE_DIR = str(APP_DIR / "workspace")
 STATIC_DIR = APP_DIR / "app" / "web" / "static"
 

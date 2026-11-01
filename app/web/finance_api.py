@@ -131,7 +131,7 @@ def receipt_image(request_id: int, image_id: str, request: Request):
 
 @router.post("/api/finance/requests/{request_id}/withdraw")
 def withdraw(request_id: int, request: Request):
-    return _run(lambda: finance_manager.withdraw(request_id, request.state.user["id"]))
+    return _run(lambda: finance_manager.withdraw(request_id, request.state.user))
 
 
 @router.post("/api/finance/requests/{request_id}/approve")

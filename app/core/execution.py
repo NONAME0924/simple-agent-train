@@ -50,7 +50,8 @@ async def execute_call(session_id, name, arguments, allowed, *, mode, sdd_saved,
     log("tool.start", tool=name, function=function, arguments=arguments)
     def success(result):
         result = result if isinstance(result, ToolResult) else ToolResult(result)
-        log("tool.end", tool=name, function=function, ok=result.ok, result=str(result), images=result.images,
+        log("tool.end", tool=name, function=function, ok=result.ok,
+            result="[敏感資料，已從 log 隱藏]" if getattr(result, "sensitive", False) else str(result), images=result.images,
             duration=time.perf_counter() - started, level=20 if result.ok else 40)
         return result
 

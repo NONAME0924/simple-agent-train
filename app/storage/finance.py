@@ -1,12 +1,17 @@
-"""實驗室公帳：請款單、審核與只增不改的流水帳。金額一律是新台幣整數。"""
+"""實驗室公帳：獨立的 finance.db（請款單、照片、事件、只增不改的流水帳）與依身分分層的唯讀查詢。
+金額一律是新台幣整數。使用者資料仍在 memory.db，這裡只存使用者 ID 與當時的帳號名稱快照。"""
 import datetime
 import json
+import re
 import sqlite3
+from pathlib import Path
+from app.config import APP_DIR, FINANCE_DB_PATH
 from app.logging_setup import log
-from app.storage.memory import memory_manager
 
 MAX_AMOUNT = 100_000_000
 MAX_IMAGES = 4
+STATUSES = ("pending", "approved", "rejected", "withdrawn")
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 class FinanceError(Exception):
@@ -32,52 +37,174 @@ def _text(value, label, limit):
     return value
 
 
-def _request(row):
-    item = dict(row)
-    item["images"] = json.loads(item["images"])
-    return item
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS expense_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL, user_name TEXT NOT NULL,
+    amount INTEGER NOT NULL CHECK(amount > 0),
+    original_amount INTEGER CHECK(original_amount IS NULL OR original_amount > 0),
+    adjust_note TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','withdrawn')),
+    reject_reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT, decided_by_name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_req_user ON expense_requests(user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_req_status ON expense_requests(status, id DESC);
+CREATE INDEX IF NOT EXISTS idx_req_created ON expense_requests(created_at);
+CREATE TABLE IF NOT EXISTS expense_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL REFERENCES expense_requests(id),
+    image_id TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL,
+    UNIQUE(request_id, image_id)
+);
+CREATE TABLE IF NOT EXISTS request_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL REFERENCES expense_requests(id),
+    kind TEXT NOT NULL CHECK(kind IN ('submitted','amount_adjusted','approved','rejected','withdrawn')),
+    actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
+    amount_before INTEGER, amount_after INTEGER,
+    note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_event_request ON request_events(request_id, id);
+CREATE TABLE IF NOT EXISTS fund_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK(kind IN ('add','subtract','expense')),
+    amount INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    request_id INTEGER REFERENCES expense_requests(id),
+    actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_created ON fund_ledger(created_at);
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"""
 
 
 class FinanceManager:
-    def _conn(self):
-        return memory_manager._get_connection()
+    def __init__(self, path=None, legacy_path=None):
+        self.path = Path(path or FINANCE_DB_PATH)
+        self.legacy_path = Path(legacy_path or APP_DIR / "memory.db")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._conn() as conn:
+            conn.executescript(SCHEMA)
+            for table in ("fund_ledger", "request_events"):  # 帳務紀錄只能新增
+                for action in ("UPDATE", "DELETE"):
+                    conn.execute(f"""CREATE TRIGGER IF NOT EXISTS {table}_no_{action.lower()} BEFORE {action} ON {table}
+                        BEGIN SELECT RAISE(ABORT, '帳務紀錄只能新增，不能修改或刪除'); END""")
+        self._migrate_legacy()
+
+    def _conn(self, readonly=False):
+        if readonly:  # 查詢一律走唯讀連線，物理上改不了帳。
+            conn = sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True)
+            conn.execute("PRAGMA query_only=ON")
+        else:
+            conn = sqlite3.connect(self.path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
+    # ---------- 從舊版（放在 memory.db）一次性搬移 ----------
+    def _migrate_legacy(self):
+        if not self.legacy_path.is_file():
+            return
+        with self._conn() as conn:
+            if conn.execute("SELECT 1 FROM meta WHERE key='migrated_from_memory_db'").fetchone():
+                return
+        try:
+            old = sqlite3.connect(self.legacy_path.resolve().as_uri() + "?mode=ro", uri=True)
+            old.row_factory = sqlite3.Row
+            tables = {row[0] for row in old.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        except sqlite3.Error:
+            return
+        with old, self._conn() as conn:
+            if "expense_requests" in tables:
+                names = {row[0]: row[1] for row in old.execute("SELECT id, username FROM users")} if "users" in tables else {}
+                has_orig = "original_amount" in {row[1] for row in old.execute("PRAGMA table_info(expense_requests)")}
+                for r in old.execute("SELECT * FROM expense_requests ORDER BY id"):
+                    original = r["original_amount"] if has_orig else None
+                    conn.execute("""INSERT INTO expense_requests (id, user_id, user_name, amount, original_amount, adjust_note, description,
+                        status, reject_reason, created_at, decided_at, decided_by, decided_by_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (r["id"], r["user_id"], names.get(r["user_id"], "（已移除）"), r["amount"], original,
+                         r["adjust_note"] if has_orig else "", r["description"], r["status"], r["reject_reason"], r["created_at"],
+                         r["decided_at"], r["decided_by"], r["decided_by_name"]))
+                    for position, image in enumerate(json.loads(r["images"] or "[]")):
+                        conn.execute("INSERT OR IGNORE INTO expense_images (request_id, image_id, name, position) VALUES (?,?,?,?)",
+                                     (r["id"], image["id"], image.get("name", "image.png"), position))
+                    first = original if original else r["amount"]
+                    self._event(conn, r["id"], "submitted", r["user_id"], names.get(r["user_id"], "（已移除）"), None, first, "", r["created_at"])
+                    if original:
+                        self._event(conn, r["id"], "amount_adjusted", r["decided_by"] or "", r["decided_by_name"] or "會計", original, r["amount"], r["adjust_note"] if has_orig else "", r["created_at"])
+                    if r["status"] in ("approved", "rejected", "withdrawn"):
+                        self._event(conn, r["id"], r["status"], r["decided_by"] or r["user_id"], r["decided_by_name"] or names.get(r["user_id"], ""),
+                                    None, r["amount"] if r["status"] == "approved" else None, r["reject_reason"], r["decided_at"] or r["created_at"])
+            if "fund_ledger" in tables:
+                for r in old.execute("SELECT * FROM fund_ledger ORDER BY id"):
+                    conn.execute("INSERT INTO fund_ledger (id, kind, amount, note, request_id, actor_id, actor_name, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                                 (r["id"], r["kind"], r["amount"], r["note"], r["request_id"], r["actor_id"], r["actor_name"], r["created_at"]))
+            conn.execute("INSERT INTO meta VALUES ('migrated_from_memory_db', ?)", (_now(),))
+        log("finance.migrated", source=str(self.legacy_path))
+
+    @staticmethod
+    def _event(conn, request_id, kind, actor_id, actor_name, before, after, note, when=None):
+        conn.execute("""INSERT INTO request_events (request_id, kind, actor_id, actor_name, amount_before, amount_after, note, created_at)
+            VALUES (?,?,?,?,?,?,?,?)""", (request_id, kind, actor_id, actor_name, before, after, note, when or _now()))
+
+    # ---------- 讀取輔助 ----------
+    @staticmethod
+    def _attach(conn, rows):
+        items = [dict(row, requester=row["user_name"], images=[]) for row in rows]
+        if items:
+            by_id = {item["id"]: item for item in items}
+            marks = ",".join("?" * len(by_id))
+            for image in conn.execute(f"SELECT request_id, image_id, name FROM expense_images WHERE request_id IN ({marks}) ORDER BY position", tuple(by_id)):
+                by_id[image["request_id"]]["images"].append({"id": image["image_id"], "name": image["name"]})
+        return items
+
+    def get_request(self, request_id):
+        with self._conn(readonly=True) as conn:
+            rows = conn.execute("SELECT * FROM expense_requests WHERE id=?", (request_id,)).fetchall()
+            items = self._attach(conn, rows)
+        return items[0] if items else None
+
+    def list_requests(self, user_id=None, status=None, limit=200):
+        with self._conn(readonly=True) as conn:
+            rows = conn.execute("""SELECT * FROM expense_requests WHERE (? IS NULL OR user_id=?) AND (? IS NULL OR status=?)
+                ORDER BY id DESC LIMIT ?""", (user_id, user_id, status, status, limit)).fetchall()
+            return self._attach(conn, rows)
+
+    def pending_count(self):
+        with self._conn(readonly=True) as conn:
+            return conn.execute("SELECT COUNT(*) FROM expense_requests WHERE status='pending'").fetchone()[0]
+
+    def count_for_user(self, user_id):
+        with self._conn(readonly=True) as conn:
+            return conn.execute("SELECT COUNT(*) FROM expense_requests WHERE user_id=?", (user_id,)).fetchone()[0]
 
     # ---------- 請款 ----------
     def create_request(self, user, amount, description, images):
         amount, description = _amount(amount), _text(description, "事由", 500)
         if not 1 <= len(images) <= MAX_IMAGES:
             raise FinanceError(f"請附上 1～{MAX_IMAGES} 張收據或單據照片。")
+        now = _now()
         with self._conn() as conn:
-            cursor = conn.execute("INSERT INTO expense_requests (user_id, amount, description, images, created_at) VALUES (?,?,?,?,?)",
-                                  (user["id"], amount, description, json.dumps(images, ensure_ascii=False), _now()))
-            request_id = cursor.lastrowid
+            request_id = conn.execute("INSERT INTO expense_requests (user_id, user_name, amount, description, created_at) VALUES (?,?,?,?,?)",
+                                      (user["id"], user["username"], amount, description, now)).lastrowid
+            for position, image in enumerate(images):
+                conn.execute("INSERT INTO expense_images (request_id, image_id, name, position) VALUES (?,?,?,?)",
+                             (request_id, image["id"], image["name"], position))
+            self._event(conn, request_id, "submitted", user["id"], user["username"], None, amount, "", now)
         log("finance.request_created", request_id=request_id, user_id=user["id"], amount=amount)
         return self.get_request(request_id)
 
-    _SELECT = """SELECT r.*, u.username AS requester FROM expense_requests r LEFT JOIN users u ON u.id = r.user_id"""
-
-    def get_request(self, request_id):
-        with self._conn() as conn:
-            row = conn.execute(f"{self._SELECT} WHERE r.id=?", (request_id,)).fetchone()
-        return _request(row) if row else None
-
-    def list_requests(self, user_id=None, status=None, limit=200):
-        with self._conn() as conn:
-            rows = conn.execute(f"""{self._SELECT} WHERE (? IS NULL OR r.user_id=?) AND (? IS NULL OR r.status=?)
-                ORDER BY r.id DESC LIMIT ?""", (user_id, user_id, status, status, limit)).fetchall()
-        return [_request(row) for row in rows]
-
-    def pending_count(self):
-        with self._conn() as conn:
-            return conn.execute("SELECT COUNT(*) FROM expense_requests WHERE status='pending'").fetchone()[0]
-
-    def withdraw(self, request_id, user_id):
+    def withdraw(self, request_id, user):
         with self._conn() as conn:
             changed = conn.execute("UPDATE expense_requests SET status='withdrawn', decided_at=? WHERE id=? AND user_id=? AND status='pending'",
-                                   (_now(), request_id, user_id)).rowcount
-        if not changed:
-            raise FinanceError("只能撤回自己仍在審核中的請款。", 409)
-        log("finance.request_withdrawn", request_id=request_id, user_id=user_id)
+                                   (_now(), request_id, user["id"])).rowcount
+            if not changed:
+                raise FinanceError("只能撤回自己仍在審核中的請款。", 409)
+            self._event(conn, request_id, "withdrawn", user["id"], user["username"], None, None, "")
+        log("finance.request_withdrawn", request_id=request_id, user_id=user["id"])
         return self.get_request(request_id)
 
     # ---------- 審核（會計） ----------
@@ -93,6 +220,7 @@ class FinanceManager:
             original = row["original_amount"] if row["original_amount"] is not None else row["amount"]
             conn.execute("UPDATE expense_requests SET amount=?, original_amount=?, adjust_note=? WHERE id=?",
                          (amount, None if amount == original else original, "" if amount == original else note, request_id))
+            self._event(conn, request_id, "amount_adjusted", actor["id"], actor["username"], row["amount"], amount, note)
         log("finance.request_amount_adjusted", request_id=request_id, actor=actor["id"], before=row["amount"], after=amount)
         return self.get_request(request_id)
 
@@ -114,6 +242,7 @@ class FinanceManager:
                          (-row["amount"], row["description"], request_id, actor["id"], actor["username"], now))
             conn.execute("UPDATE expense_requests SET status='approved', decided_at=?, decided_by=?, decided_by_name=? WHERE id=?",
                          (now, actor["id"], actor["username"], request_id))
+            self._event(conn, request_id, "approved", actor["id"], actor["username"], None, row["amount"], "", now)
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -128,18 +257,20 @@ class FinanceManager:
         with self._conn() as conn:
             changed = conn.execute("""UPDATE expense_requests SET status='rejected', reject_reason=?, decided_at=?, decided_by=?, decided_by_name=?
                 WHERE id=? AND status='pending'""", (reason, _now(), actor["id"], actor["username"], request_id)).rowcount
-        if not changed:
-            raise FinanceError("找不到審核中的這筆請款。", 409)
+            if not changed:
+                raise FinanceError("找不到審核中的這筆請款。", 409)
+            self._event(conn, request_id, "rejected", actor["id"], actor["username"], None, None, reason)
         log("finance.rejected", request_id=request_id, actor=actor["id"])
         return self.get_request(request_id)
 
     # ---------- 經費 ----------
     def summary(self):
         """total＝累計撥入減手動減少；spent＝已通過的請款；remaining＝total－spent。"""
-        with self._conn() as conn:
+        with self._conn(readonly=True) as conn:
             total = conn.execute("SELECT COALESCE(SUM(amount),0) FROM fund_ledger WHERE kind IN ('add','subtract')").fetchone()[0]
             spent = -conn.execute("SELECT COALESCE(SUM(amount),0) FROM fund_ledger WHERE kind='expense'").fetchone()[0]
-        return {"total": total, "spent": spent, "remaining": total - spent, "pending": self.pending_count()}
+            pending = conn.execute("SELECT COUNT(*) FROM expense_requests WHERE status='pending'").fetchone()[0]
+        return {"total": total, "spent": spent, "remaining": total - spent, "pending": pending}
 
     def adjust(self, kind, amount, note, actor):
         if kind not in ("add", "subtract"):
@@ -163,10 +294,179 @@ class FinanceManager:
         return self.summary()
 
     def ledger(self, limit=100, before=None):
-        with self._conn() as conn:
-            rows = conn.execute("""SELECT * FROM fund_ledger WHERE (? IS NULL OR id<?) ORDER BY id DESC LIMIT ?""",
-                                (before, before, limit)).fetchall()
+        with self._conn(readonly=True) as conn:
+            rows = conn.execute("SELECT * FROM fund_ledger WHERE (? IS NULL OR id<?) ORDER BY id DESC LIMIT ?", (before, before, limit)).fetchall()
         return [dict(row) for row in rows]
 
 
 finance_manager = FinanceManager()
+
+
+# ======================================================================
+# Agent 用的唯讀查詢：身分由系統帶入，並在查詢當下再向使用者表確認一次（雙重驗證）。
+# ======================================================================
+class Principal:
+    def __init__(self, user_id, username, is_treasurer, is_admin):
+        self.id, self.username, self.is_treasurer, self.is_admin = user_id, username, is_treasurer, is_admin
+
+    @property
+    def can_view_all(self):
+        return self.is_treasurer or self.is_admin
+
+
+def resolve_principal(asker):
+    """第一層：asker 是系統依登入狀態綁定的提問者（模型不能指定）。
+    第二層：這裡不信任 asker 內的角色，改從使用者表即時取得；帳號停用或不再是會計都立刻生效。"""
+    from app.storage.users import user_manager
+    if not asker or not asker.get("id"):
+        raise PermissionError("需要登入身分才能查詢財務資料。")
+    live = user_manager.get(asker["id"])
+    if not live or live["status"] != "active":
+        raise PermissionError("帳號已停用或不存在，無法查詢財務資料。")
+    return Principal(live["id"], live["username"], bool(live["is_treasurer"]), live["role"] == "admin")
+
+
+def _money(value):
+    return f"{'-' if value < 0 else ''}${abs(value):,}"
+
+
+def _date(value, label):
+    value = (value or "").strip()
+    if value:
+        try:
+            if not DATE_RE.fullmatch(value):
+                raise ValueError
+            datetime.date.fromisoformat(value)
+        except ValueError:
+            raise ValueError(f"{label} 須為真實存在的 YYYY-MM-DD 日期。") from None
+    return value or None
+
+
+def _like(keyword):
+    keyword = (keyword or "").strip()[:50]
+    if not keyword:
+        return None
+    escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _next_day(value):
+    return (datetime.date.fromisoformat(value) + datetime.timedelta(days=1)).isoformat() if value else None
+
+
+def _line(item):
+    extra = f"（原申請 {_money(item['original_amount'])}）" if item["original_amount"] else ""
+    reason = f"｜退回原因：{item['reject_reason']}" if item["status"] == "rejected" else ""
+    description = item["description"].replace("\n", " ")[:80]
+    return (f"#{item['id']} {item['created_at'][:10]} {item['user_name']} {_money(item['amount'])}{extra} "
+            f"{ {'pending': '審核中', 'approved': '已通過', 'rejected': '已退回', 'withdrawn': '已撤回'}[item['status']] }"
+            f"｜事由「{description}」｜照片 {item['images']} 張{reason}")
+
+
+class FinanceReader:
+    """每個方法第一個參數都是 Principal；個人查詢一律在 SQL 加上 user_id 條件，全域查詢要求會計或管理員。"""
+
+    def __init__(self, manager):
+        self.manager = manager
+
+    @staticmethod
+    def _need_all(p):
+        if not p.can_view_all:
+            raise PermissionError("只有會計與管理員可以查詢全實驗室的財務資料；你可以查詢自己的請款。")
+
+    def _requests(self, conn, scope_user, status, since, until, keyword, limit):
+        clauses, params = [], []
+        for sql, value in (("r.user_id=?", scope_user), ("r.status=?", status or None), ("r.created_at>=?", since),
+                           ("r.created_at<?", _next_day(until)), ("r.description LIKE ? ESCAPE '\\'", _like(keyword))):
+            if value is not None:
+                clauses.append(sql)
+                params.append(value)
+        where = " AND ".join(clauses) or "1=1"  # 條件文字都是固定字串，使用者輸入只走參數。
+        rows = conn.execute(f"""SELECT r.*, (SELECT COUNT(*) FROM expense_images i WHERE i.request_id=r.id) AS images
+            FROM expense_requests r WHERE {where} ORDER BY r.id DESC LIMIT ?""", (*params, max(1, min(int(limit), 50)))).fetchall()
+        total = conn.execute(f"SELECT COUNT(*) FROM expense_requests r WHERE {where}", tuple(params)).fetchone()[0]
+        return rows, total
+
+    def requests_text(self, p, *, mine, user="", status="", since="", until="", keyword="", limit=20):
+        if status and status not in STATUSES:
+            raise ValueError("status 須為 pending、approved、rejected、withdrawn 之一。")
+        since, until = _date(since, "since"), _date(until, "until")
+        if mine:
+            scope = p.id
+        else:
+            self._need_all(p)
+            scope = None
+            if user:
+                with self.manager._conn(readonly=True) as conn:
+                    row = conn.execute("SELECT user_id FROM expense_requests WHERE user_name=? COLLATE NOCASE LIMIT 1", (user.strip(),)).fetchone()
+                if not row:
+                    return f"找不到 {user} 的請款紀錄。"
+                scope = row["user_id"]
+        with self.manager._conn(readonly=True) as conn:
+            rows, total = self._requests(conn, scope, status, since, until, keyword, limit)
+        if not rows:
+            return "沒有符合條件的請款。"
+        return f"共 {total} 筆，顯示最新 {len(rows)} 筆：\n" + "\n".join(_line(dict(row)) for row in rows)
+
+    def my_summary(self, p):
+        with self.manager._conn(readonly=True) as conn:
+            by_status = conn.execute("SELECT status, COUNT(*) n, COALESCE(SUM(amount),0) s FROM expense_requests WHERE user_id=? GROUP BY status", (p.id,)).fetchall()
+            by_month = conn.execute("""SELECT substr(created_at,1,7) m, COUNT(*) n, COALESCE(SUM(amount),0) s FROM expense_requests
+                WHERE user_id=? AND status='approved' GROUP BY m ORDER BY m DESC LIMIT 12""", (p.id,)).fetchall()
+        if not by_status:
+            return "你還沒有送出過請款。"
+        names = {"pending": "審核中", "approved": "已通過", "rejected": "已退回", "withdrawn": "已撤回"}
+        lines = [f"{names[r['status']]}：{r['n']} 筆，合計 {_money(r['s'])}" for r in by_status]
+        if by_month:
+            lines.append("已通過的每月合計：" + "；".join(f"{r['m']} {_money(r['s'])}（{r['n']} 筆）" for r in by_month))
+        return "你的請款合計\n" + "\n".join(lines)
+
+    def detail(self, p, request_id):
+        item = self.manager.get_request(request_id)
+        if not item or (item["user_id"] != p.id and not p.can_view_all):
+            return "找不到這筆請款，或你沒有權限查看。"  # 兩種情況回同一句，不洩漏他人請款是否存在。
+        with self.manager._conn(readonly=True) as conn:
+            events = conn.execute("SELECT * FROM request_events WHERE request_id=? ORDER BY id", (request_id,)).fetchall()
+        names = {"submitted": "送出", "amount_adjusted": "會計調整金額", "approved": "通過並扣款", "rejected": "退回", "withdrawn": "申請人撤回"}
+        trail = []
+        for e in events:
+            money = f"（{_money(e['amount_before'])}→{_money(e['amount_after'])}）" if e["kind"] == "amount_adjusted" else ""
+            note = f"：{e['note']}" if e["note"] else ""
+            trail.append(f"{e['created_at']} {names[e['kind']]}{money} {e['actor_name']}{note}")
+        head = _line({**item, "images": len(item["images"])})
+        return head + "\n處理紀錄：\n" + "\n".join(trail)
+
+    def fund(self, p):
+        self._need_all(p)
+        s = self.manager.summary()
+        return f"總金額 {_money(s['total'])}｜已核銷 {_money(s['spent'])}｜目前剩餘 {_money(s['remaining'])}｜待審 {s['pending']} 筆"
+
+    def ledger(self, p, kind="", since="", until="", limit=30):
+        self._need_all(p)
+        if kind and kind not in ("add", "subtract", "expense"):
+            raise ValueError("kind 須為 add、subtract、expense。")
+        since, until = _date(since, "since"), _date(until, "until")
+        until_exclusive = _next_day(until)
+        with self.manager._conn(readonly=True) as conn:
+            rows = conn.execute("""SELECT * FROM fund_ledger WHERE (? IS NULL OR kind=?) AND (? IS NULL OR created_at>=?) AND (? IS NULL OR created_at<?)
+                ORDER BY id DESC LIMIT ?""", (kind or None, kind or None, since, since, until_exclusive, until_exclusive, max(1, min(int(limit), 50)))).fetchall()
+        names = {"add": "加錢", "subtract": "減錢", "expense": "請款核銷"}
+        return "\n".join(f"{r['created_at']} {names[r['kind']]} {'+' if r['amount'] > 0 else '-'}{abs(r['amount']):,}｜{r['note'][:60]}（{r['actor_name']}）"
+                         for r in rows) or "沒有符合條件的流水帳。"
+
+    def spending(self, p, group_by="user", since="", until=""):
+        self._need_all(p)
+        if group_by not in ("user", "month"):
+            raise ValueError("group_by 須為 user 或 month。")
+        since, until = _date(since, "since"), _date(until, "until")
+        until_exclusive = _next_day(until)
+        key = "user_name" if group_by == "user" else "substr(created_at,1,7)"
+        with self.manager._conn(readonly=True) as conn:
+            rows = conn.execute(f"""SELECT {key} k, COUNT(*) n, SUM(amount) s FROM expense_requests WHERE status='approved'
+                AND (? IS NULL OR created_at>=?) AND (? IS NULL OR created_at<?) GROUP BY k ORDER BY s DESC LIMIT 50""",
+                (since, since, until_exclusive, until_exclusive)).fetchall()
+        return ("已通過請款彙總（依" + ("申請人" if group_by == "user" else "月份") + "）：\n"
+                + "\n".join(f"{r['k']}：{_money(r['s'])}（{r['n']} 筆）" for r in rows)) if rows else "沒有已通過的請款。"
+
+
+finance_reader = FinanceReader(finance_manager)

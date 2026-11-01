@@ -9,7 +9,24 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
-<body>
+<body data-view="chat">
+  <nav id="app-rail" class="app-rail" aria-label="主要功能">
+    <div class="rail-mark" aria-hidden="true">A</div>
+    <button id="rail-chat" class="rail-item is-active" data-view="chat" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="rail-label">聊天</span>
+    </button>
+    <button id="btn-finance" class="rail-item" data-view="finance" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg><span class="rail-label">報帳</span><span id="finance-badge" class="badge" hidden></span>
+    </button>
+    <button id="rail-admin" class="rail-item" data-view="admin" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="rail-label">管理</span>
+    </button>
+    <span class="rail-spacer"></span>
+    <button id="theme-toggle" class="rail-item" onclick="toggleTheme()" aria-label="切換顯示模式">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span class="rail-label">暗色</span>
+    </button>
+    <button id="btn-account" class="rail-avatar" aria-haspopup="dialog" hidden></button>
+  </nav>
   <button id="navigation-backdrop" class="navigation-backdrop" aria-label="關閉對話列表" tabindex="-1"></button>
   <aside id="sidebar" class="navigation" aria-label="專案與對話">
     <div class="navigation-header">
@@ -28,9 +45,6 @@
       </button>
       <h1 id="current-chat-title">新對話</h1>
       <button id="btn-toggle-workspace" class="text-button panel-toggle" aria-controls="workspace-drawer" aria-expanded="false">專案面板</button>
-      <button id="theme-toggle" class="text-button" onclick="toggleTheme()" aria-label="切換顯示模式">暗色</button>
-      <button id="btn-finance" class="text-button" aria-haspopup="dialog" hidden>報帳<span id="finance-badge" class="badge" hidden></span></button>
-      <button id="btn-account" class="text-button" aria-haspopup="dialog" hidden></button>
     </header>
     <main id="chat-container" class="chat-container" aria-label="聊天內容">
       <div id="welcome-card" class="welcome">
@@ -207,39 +221,19 @@
       </form>
     </div>
   </div>
-  <div id="admin-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="admin-title">
-    <div class="modal-sheet admin-sheet">
-      <div class="modal-header"><h2 id="admin-title">管理後台</h2>
-        <button id="admin-tab-users" class="map-tab is-active">帳號</button>
-        <button id="admin-tab-sessions" class="map-tab">全部對話</button>
-        <button class="text-button" data-close="admin-modal">關閉</button></div>
-      <div class="modal-body">
-        <p id="admin-status" class="help-text" role="status"></p>
-        <section id="admin-users">
-          <form id="admin-create" class="button-row">
-            <input id="admin-new-name" placeholder="新帳號" maxlength="32" required aria-label="新帳號">
-            <input id="admin-new-password" type="password" placeholder="初始密碼（8 字以上）" minlength="8" required aria-label="初始密碼" autocomplete="new-password">
-            <select id="admin-new-role" aria-label="角色"><option value="user">一般使用者</option><option value="admin">管理員</option></select>
-            <button class="secondary-button">建立（直接啟用）</button>
-          </form>
-          <div id="admin-user-list"></div>
-        </section>
-        <section id="admin-sessions" hidden>
-          <p class="help-text">可檢視所有人的對話；管理員對他人的對話唯讀，只能刪除。</p>
-          <div id="admin-session-list"></div>
-          <div id="admin-session-view" class="admin-view hidden"></div>
-        </section>
-      </div>
-    </div>
-  </div>
-  <div id="finance-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="finance-title">
-    <div class="modal-sheet admin-sheet">
-      <div class="modal-header"><h2 id="finance-title">實驗室報帳</h2>
-        <button id="fin-tab-mine" class="map-tab is-active">我的請款</button>
-        <button id="fin-tab-review" class="map-tab" hidden>全部請款</button>
-        <button id="fin-tab-fund" class="map-tab" hidden>經費</button>
-        <button class="text-button" data-close="finance-modal">關閉</button></div>
-      <div class="modal-body">
+  <section id="finance-modal" class="modal-overlay view-pane hidden" aria-labelledby="finance-title">
+    <aside class="pane-side" aria-label="報帳選單">
+      <h2 id="finance-title" class="pane-title">報帳</h2>
+      <nav class="pane-nav">
+        <button id="fin-tab-mine" class="pane-nav-item is-active">我的請款</button>
+        <button id="fin-tab-review" class="pane-nav-item" hidden>全部請款</button>
+        <button id="fin-tab-fund" class="pane-nav-item" hidden>經費</button>
+      </nav>
+      <p class="pane-note">成員只看得到自己的請款；餘額與流水帳只有會計與管理員看得到。</p>
+    </aside>
+    <div class="pane-main">
+      <header class="pane-top"><h1>實驗室報帳</h1></header>
+      <div class="modal-body pane-body">
         <p id="fin-status" class="help-text" role="status"></p>
         <section id="fin-mine">
           <form id="fin-form" class="fin-form">
@@ -274,7 +268,39 @@
         </section>
       </div>
     </div>
-  </div>
+  </section>
+  <section id="admin-modal" class="modal-overlay view-pane hidden" aria-labelledby="admin-title">
+    <aside class="pane-side" aria-label="管理選單">
+      <h2 id="admin-title" class="pane-title">管理</h2>
+      <nav class="pane-nav">
+        <button id="admin-tab-users" class="pane-nav-item is-active">帳號與權限</button>
+        <button id="admin-tab-sessions" class="pane-nav-item">所有對話（唯讀）</button>
+        <button id="admin-go-fund" class="pane-nav-item">公費總覽（唯讀）</button>
+        <button id="admin-go-logs" class="pane-nav-item">系統日誌</button>
+      </nav>
+      <p class="pane-note">核准帳號等於授權對方使用 Agent，請只核准實驗室成員。</p>
+    </aside>
+    <div class="pane-main">
+      <header class="pane-top"><h1>管理後台</h1></header>
+      <div class="modal-body pane-body">
+        <p id="admin-status" class="help-text" role="status"></p>
+        <section id="admin-users">
+          <form id="admin-create" class="button-row">
+            <input id="admin-new-name" placeholder="新帳號" maxlength="32" required aria-label="新帳號">
+            <input id="admin-new-password" type="password" placeholder="初始密碼（8 字以上）" minlength="8" required aria-label="初始密碼" autocomplete="new-password">
+            <select id="admin-new-role" aria-label="角色"><option value="user">一般使用者</option><option value="admin">管理員</option></select>
+            <button class="secondary-button">建立（直接啟用）</button>
+          </form>
+          <div id="admin-user-list"></div>
+        </section>
+        <section id="admin-sessions" hidden>
+          <p class="help-text">可檢視所有人的對話；管理員對他人的對話唯讀，只能刪除。</p>
+          <div id="admin-session-list"></div>
+          <div id="admin-session-view" class="admin-view hidden"></div>
+        </section>
+      </div>
+    </div>
+  </section>
   <div id="members-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="members-title">
     <div class="modal-sheet account-sheet">
       <div class="modal-header"><h2 id="members-title">分享專案</h2>
@@ -339,5 +365,6 @@
   <script src="/static/js/skill-panel.js"></script>
   <script src="/static/js/account.js"></script>
   <script src="/static/js/finance.js"></script>
+  <script src="/static/js/shell.js"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@
     document.documentElement.dataset.theme = theme;
     const button = document.getElementById("theme-toggle");
     if (button) {
-      button.textContent = theme === "dark" ? "淺色" : "暗色";
+      (button.querySelector(".rail-label") || button).textContent = theme === "dark" ? "淺色" : "暗色";
       button.setAttribute("aria-label", `切換為${theme === "dark" ? "淺色" : "暗色"}模式`);
       button.setAttribute("aria-pressed", String(theme === "dark"));
     }

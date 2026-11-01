@@ -51,7 +51,13 @@ A separate Windows distribution may include `runtime/` and `AI-Agent.exe`. These
 | `AGENT_OUTPUT_TOKENS` | Generation limit for each ordinary model request | `4096` |
 | `AGENT_MODEL_READ_TIMEOUT` | Seconds waiting for more model response data | `600` |
 | `AGENT_MAX_STEPS` | Main model decision rounds per run; an unfinished run gets one extra summary | `15` |
+| `SERVER_HOST` | Listen address; `0.0.0.0` opens it to the local network (e.g. a lab) | `127.0.0.1` |
 | `SERVER_PORT` | Web service port | `8000` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Used to create the first admin when the database has none; if empty, an `admin` account is created and a random password is shown once in the startup window | empty |
+| `AUTH_SESSION_DAYS` | Days a login stays valid | `7` |
+| `AUTH_COOKIE_SECURE` | Set to `1` when served behind HTTPS | `0` |
+
+The web UI requires login. New users request an account on the login page and an admin approves it; conversations are separated per account, projects can be shared with other accounts, and admins can view every conversation and manage accounts. See [docs/usage.md](docs/usage.md) (Chinese).
 
 Existing environment variables override `.env`. The current output limit is capped at one quarter of the configured context. Context compaction starts at 80% of the available input budget. Actual capacity and speed depend on the model and hardware.
 

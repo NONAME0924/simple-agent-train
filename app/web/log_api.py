@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from typing import Literal
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from app.logging_setup import log_path, event_category, is_quiet_read
 from app.storage.memory import memory_manager
@@ -11,7 +11,9 @@ router = APIRouter()
 LogScope = Literal["current", "session", "system"]
 
 
-def _source(session_id, scope):
+def _source(session_id, scope, user=None):
+    if scope == "system" and user is not None and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="系統日誌只有管理員可以查看。")
     session = memory_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="找不到目前對話。")
@@ -22,11 +24,11 @@ def _source(session_id, scope):
 
 
 @router.get("/api/sessions/{session_id}/logs")
-def read_logs(session_id: str, scope: LogScope = "current",
+def read_logs(request: Request, session_id: str, scope: LogScope = "current",
               level: Literal["ALL", "INFO", "WARNING", "ERROR"] = "ALL",
               category: Literal["ALL", "system", "model", "tool", "memory"] = "ALL",
               limit: int = Query(default=100, ge=1, le=200)):
-    path, label, only_session = _source(session_id, scope)
+    path, label, only_session = _source(session_id, scope, request.state.user)
     entries, budget, limited = [], 4 * 1024 * 1024, False
     for index in range(9):
         source = path if index == 0 else Path(f"{path}.{index}")
@@ -69,8 +71,8 @@ def read_logs(session_id: str, scope: LogScope = "current",
 
 
 @router.get("/api/sessions/{session_id}/logs/download")
-def download_log(session_id: str, scope: LogScope = "current", backup: int = Query(default=0, ge=0, le=8)):
-    path, _, _ = _source(session_id, scope)
+def download_log(request: Request, session_id: str, scope: LogScope = "current", backup: int = Query(default=0, ge=0, le=8)):
+    path, _, _ = _source(session_id, scope, request.state.user)
     if backup:
         path = Path(f"{path}.{backup}")
     if not path.is_file():

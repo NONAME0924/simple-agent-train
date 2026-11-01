@@ -1,11 +1,18 @@
 """共用偏好的單項更新；單次任務內容留在工作區與專案記憶。"""
 from contextvars import ContextVar
 from threading import Lock
-from app.config import APP_DIR
+from app.config import APP_DIR, DATA_DIR
+from app.storage.identity import current_user
 from app.logging_setup import log
 
 preference_source = ContextVar("preference_source", default="")
 _lock = Lock()
+
+
+def preference_path():
+    """網頁使用者各自一份個人偏好；沒有登入使用者（命令列）時沿用全站 AGENTS.md。"""
+    user = current_user.get()
+    return DATA_DIR / "users" / user["id"] / "AGENTS.md" if user else APP_DIR / "AGENTS.md"
 
 
 def update_user_preference(preference: str, source_quote: str, replaces: str = "") -> str:
@@ -19,7 +26,8 @@ def update_user_preference(preference: str, source_quote: str, replaces: str = "
         raise ValueError("偏好來源必須是本次使用者訊息的逐字引用。")
     if not preference or len(preference) > 300 or any(c in preference for c in "\r\n"):
         raise ValueError("每次只保存一項 300 字以內的單行偏好。")
-    path = APP_DIR / "AGENTS.md"
+    path = preference_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
     with _lock:
         original = path.read_text(encoding="utf-8-sig") if path.exists() else "# 使用者共用偏好\n"
         lines = original.splitlines()

@@ -13,6 +13,8 @@ from app.logging_setup import log
 from app.storage.memory import memory_manager
 from app.storage.jobs import job_manager, JOB_DIR
 from app.storage.workspace import session_workspace
+from app.storage.users import user_manager
+from app.web.auth import can_delete_session, can_write_session, project_role
 from app.storage.images import MAX_IMAGE_BYTES, MAX_IMAGES, save_image, image_path, image_info
 
 router = APIRouter()
@@ -51,9 +53,46 @@ class MemoryEdit(BaseModel):
     version: int
 
 
+class MemberRequest(BaseModel):
+    username: str = Field(max_length=64)
+
+
 @router.get("/api/projects")
-async def get_projects():
-    return {"projects": memory_manager.list_projects()}
+async def get_projects(request: Request):
+    return {"projects": memory_manager.list_projects(request.state.user["id"])}
+
+
+@router.get("/api/projects/{project_id}/members")
+async def get_members(project_id: str):
+    project = memory_manager.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="找不到專案。")
+    owner = user_manager.get(project["owner_id"]) if project["owner_id"] else None
+    return {"owner": owner["username"] if owner else None, "members": memory_manager.list_members(project_id)}
+
+
+@router.post("/api/projects/{project_id}/members")
+async def add_member(project_id: str, req: MemberRequest):
+    project = memory_manager.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="找不到專案。")
+    target = user_manager.find(req.username)
+    if target is None or target["status"] != "active":
+        raise HTTPException(status_code=404, detail="找不到這位可用的使用者。")
+    if target["id"] == project["owner_id"]:
+        raise HTTPException(status_code=409, detail="這位已是專案擁有者。")
+    memory_manager.add_member(project_id, target["id"])
+    return {"members": memory_manager.list_members(project_id)}
+
+
+@router.delete("/api/projects/{project_id}/members/{user_id}")
+async def remove_member(project_id: str, user_id: str, request: Request):
+    if any(s["project_id"] == project_id and s["owner_id"] == user_id and (s["id"] in request.app.state.agent.runs or job_manager.has_active(s["id"]))
+           for s in memory_manager.list_sessions()):
+        raise HTTPException(status_code=409, detail="這位成員在專案中仍有執行中的任務。")
+    if not memory_manager.remove_member(project_id, user_id):
+        raise HTTPException(status_code=404, detail="這位不是專案成員。")
+    return {"members": memory_manager.list_members(project_id)}
 
 
 @router.get("/api/projects/{project_id}/memory")
@@ -66,9 +105,9 @@ async def get_project_memory(project_id: str):
 
 
 @router.post("/api/projects")
-async def create_project(req: ProjectRequest):
+async def create_project(req: ProjectRequest, request: Request):
     try:
-        return memory_manager.save_project(f"proj_{uuid.uuid4().hex}", req.name)
+        return memory_manager.save_project(f"proj_{uuid.uuid4().hex}", req.name, request.state.user["id"])
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
@@ -93,20 +132,24 @@ async def delete_project(project_id: str, request: Request):
 
 
 @router.get("/api/sessions")
-async def get_sessions():
-    """取得所有會話清單（依最後活躍時間降序排列）"""
-    sessions = memory_manager.list_sessions()
+async def get_sessions(request: Request):
+    """取得自己的與所屬專案內的會話清單（依最後活躍時間降序排列）"""
+    sessions = memory_manager.list_sessions(request.state.user["id"])
     return {"sessions": sessions}
 
 
 @router.post("/api/sessions")
-async def create_session(req: CreateSessionRequest):
+async def create_session(req: CreateSessionRequest, request: Request):
     """建立新會話"""
+    user = request.state.user
     project_id = req.project_id or None
-    if project_id is not None and memory_manager.get_project(project_id) is None:
+    if project_id is not None and project_role(user, project_id) not in {"owner", "member"}:
         raise HTTPException(status_code=404, detail="找不到專案。")
     sess_id = req.session_id or f"sess_{int(datetime.datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    session = memory_manager.create_or_get_session(sess_id, req.title, project_id)
+    existing = memory_manager.get_session(sess_id)
+    if existing is not None and not can_write_session(user, existing):
+        raise HTTPException(status_code=404, detail="找不到對話。")
+    session = memory_manager.create_or_get_session(sess_id, req.title, project_id, user["id"])
     return session
 
 
@@ -114,9 +157,13 @@ async def create_session(req: CreateSessionRequest):
 async def move_session(session_id: str, req: MoveSessionRequest, request: Request):
     if session_id in request.app.state.agent.runs or job_manager.has_active(session_id):
         raise HTTPException(status_code=409, detail="此對話仍有執行中的任務，請完成後再移動。")
+    user = request.state.user
     project_id = req.project_id or None
-    if project_id is not None and memory_manager.get_project(project_id) is None:
+    if project_id is not None and project_role(user, project_id) not in {"owner", "member"}:
         raise HTTPException(status_code=404, detail="找不到專案。")
+    session = memory_manager.get_session(session_id)
+    if session is not None and not can_delete_session(user, session):
+        raise HTTPException(status_code=403, detail="只有對話擁有者或專案擁有者可以移動這個對話。")
     if not memory_manager.move_session(session_id, project_id):
         raise HTTPException(status_code=404, detail="找不到對話。")
     return memory_manager.get_session(session_id)
@@ -142,6 +189,9 @@ async def delete_session(session_id: str, request: Request):
     """刪除指定會話及其所有歷史紀錄 (級聯刪除)"""
     if session_id in request.app.state.agent.runs or job_manager.has_active(session_id):
         raise HTTPException(status_code=409, detail="此對話仍有執行中的任務，請完成後再刪除。")
+    session = memory_manager.get_session(session_id)
+    if session is not None and not can_delete_session(request.state.user, session):
+        raise HTTPException(status_code=403, detail="只有對話擁有者、專案擁有者或管理員可以刪除對話。")
     success = memory_manager.delete_session(session_id)
     return {"status": "success" if success else "not_found"}
 
@@ -239,8 +289,12 @@ async def chat_stream(req: ChatRequest, request: Request):
     message = req.message.strip() or "請分析這些圖片。"
 
     # 確保 session 存在於資料庫
+    user = request.state.user
     sess_id = req.session_id or f"sess_{int(datetime.datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
-    memory_manager.create_or_get_session(sess_id, title=message[:25])
+    existing = memory_manager.get_session(sess_id)
+    if existing is not None and not can_write_session(user, existing):
+        raise HTTPException(status_code=404, detail="找不到對話。")
+    memory_manager.create_or_get_session(sess_id, title=message[:25], owner_id=user["id"])
     request.state.log_context = {"session_id": sess_id, "project_id": memory_manager.get_session(sess_id)["project_id"]}
     try:
         for image_id in req.images:
@@ -260,7 +314,8 @@ async def chat_stream(req: ChatRequest, request: Request):
             mode=req.mode,
             reasoning_level=req.reasoning_level,
             control=control,
-            images=req.images
+            images=req.images,
+            user=user
         )
         try:
             async for event in stream:

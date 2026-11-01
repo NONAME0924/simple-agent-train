@@ -186,7 +186,14 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) { alert(error.message); }
     finally { run.controlPending = false; updateMode(); }
   });
-  manageSessions(loadSessions);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") document.querySelectorAll("[data-close]").forEach(button => {
+      const modal = document.getElementById(button.dataset.close);
+      if (!modal.classList.contains("hidden")) modal.classList.add("hidden");
+    });
+  });
+  // 先確認登入；成功後才讀取對話。
+  startAfterLogin(() => manageSessions(loadSessions));
 });
 
 let panelReturnFocus = null;

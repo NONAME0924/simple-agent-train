@@ -3,6 +3,7 @@ from pathlib import Path
 from app.config import APP_DIR
 from app.core.skill_registry import skill_registry
 from app.storage.workspace import get_workspace_dir
+from app.tools.preferences import preference_path
 
 
 def load_prompt(name):
@@ -23,12 +24,13 @@ def prompt_messages(default_prompt: str, mode: str, tool_schemas=(), *, finalizi
         skills = skill_registry.catalog()
         if skills:
             messages.append({"role": "system", "content": "可用 Skill（以 read_skill 取得開頭與索引，按需選讀必要段落）：\n" + skills})
-    paths = (APP_DIR / "AGENTS.md", Path(get_workspace_dir()) / "AGENTS.md")
-    for path in dict.fromkeys(paths):
+    personal = preference_path()
+    labels = {APP_DIR / "AGENTS.md": "全站共用規則", personal: "使用者個人偏好",
+              Path(get_workspace_dir()) / "AGENTS.md": "目前工作區規則"}
+    for path in dict.fromkeys((APP_DIR / "AGENTS.md", personal, Path(get_workspace_dir()) / "AGENTS.md")):
         if path.is_file():
             rules = path.read_text(encoding="utf-8-sig")
-            label = "使用者共用偏好" if path == APP_DIR / "AGENTS.md" else "目前工作區規則"
-            messages.append({"role": "system", "content": f"{label}（{path}）：\n{rules}"})
+            messages.append({"role": "system", "content": f"{labels[path]}（{path}）：\n{rules}"})
     messages.append({"role": "system", "content": load_prompt("preferences")})
     if any(tool["name"] == "install_skill" for tool in tools):
         messages.append({"role": "system", "content": load_prompt("skill_install")})

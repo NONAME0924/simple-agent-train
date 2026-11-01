@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 from app.core.skill_registry import skill_registry
 from app.logging_setup import log
+from app.storage.identity import require_admin
 from app.storage.jobs import job_manager, get_job
 from app.storage.workspace import get_workspace_dir
 from app.tools.history_memory import memory_session
@@ -28,6 +29,8 @@ def run_skill_script(name: str, script: str, arguments: list[str] | None = None,
         raise ValueError("只支援 .py 腳本；script 不需包含 python 指令或命令列參數。")
     if not path.is_file():
         raise FileNotFoundError(f"Skill {name} 中找不到腳本：{script}。請核對 Skill 說明，確認已安裝完整腳本與資源。")
+    if name == "mcp" and (arguments or [""])[0] in {"install", "remove", "enable", "disable", "configure"}:
+        require_admin("管理 MCP 套件（安裝、移除、啟用、停用、設定）")
     job_id = job_manager.start(memory_session.get(),
         [sys.executable, "-B", str(path), *(arguments or [])], get_workspace_dir())
     log("skill.script_started", name=name, script=str(path), job_id=job_id)

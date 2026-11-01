@@ -55,13 +55,15 @@ function renderSessionList() {
     header.className = "project-heading";
     const title = document.createElement("button");
     title.className = "project-title";
-    title.textContent = `${selected ? "▾" : "▸"} ${project.name} (${sessions.length})`;
-    title.title = project.name;
+    const shared = project.id && project.role === "member";
+    title.textContent = `${selected ? "▾" : "▸"} ${project.name} (${sessions.length})${shared ? " · 共享" : ""}`;
+    title.title = shared ? `${project.name}（${project.owner_name || "他人"} 分享給你）` : project.name;
     title.setAttribute("aria-expanded", String(selected));
     title.onclick = () => selectProject(project.id);
     header.appendChild(title);
     const actions = [["＋", "在此分類新增對話", () => startNewChat(project.id)]];
-    if (project.id) actions.push(["✎", "重新命名專案", () => renameProject(project)], ["×", "刪除專案分類", () => deleteProject(project)]);
+    if (project.id) actions.push(["👥", project.role === "owner" ? "分享專案" : "查看成員／退出專案", () => openMembers(project)]);
+    if (project.id && project.role === "owner") actions.push(["✎", "重新命名專案", () => renameProject(project)], ["×", "刪除專案分類", () => deleteProject(project)]);
     for (const [text, label, action] of actions) {
       const button = document.createElement("button");
       button.className = "project-action";
@@ -78,14 +80,17 @@ function renderSessionList() {
         item.className = "session-item" + (sess.id === currentSessionId ? " is-selected" : "");
         const open = document.createElement("button"); open.className = "session-title";
         const run = sessionRuns.get(sess.id);
-        open.textContent = (sess.title || "新對話") + (run ? run.state === "paused" ? " · 已暫停" : " · 執行中" : "");
+        const byOther = sess.owner_id && currentUser && sess.owner_id !== currentUser.id;
+        open.textContent = (sess.title || "新對話") + (byOther ? ` · ${sess.owner_name || "他人"}` : "") + (run ? run.state === "paused" ? " · 已暫停" : " · 執行中" : "");
         open.title = open.textContent;
         if (sess.id === currentSessionId) open.setAttribute("aria-current", "page");
         open.onclick = () => switchSession(sess.id);
         const remove = document.createElement("button"); remove.className = "session-delete";
         remove.textContent = "×"; remove.setAttribute("aria-label", `刪除對話 ${open.textContent}`);
         remove.onclick = () => deleteSession(sess.id);
-        item.append(open, remove);
+        item.append(open);
+        // 專案內他人的對話只有擁有者本人、專案擁有者能刪；其他人不顯示刪除鈕。
+        if (!byOther || project.role === "owner") item.append(remove);
         section.appendChild(item);
       }
     }

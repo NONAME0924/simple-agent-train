@@ -207,9 +207,9 @@ def _day(value, label):
 
 
 @router.get("/api/finance/export")
-def export(request: Request, format: Literal["csv", "xlsx"] = "xlsx", table: Literal["ledger", "requests"] = "ledger",
+def export(request: Request, format: Literal["csv", "xlsx"] = "xlsx", table: Literal["ledger", "requests", "corrections"] = "ledger",
            since: Optional[str] = None, until: Optional[str] = None):
-    """會計與管理員匯出目前收支：Excel 含總覽＋流水帳＋請款明細；CSV 一次一張表（table=ledger|requests）。"""
+    """會計與管理員匯出目前收支：Excel 含總覽＋流水帳＋請款明細＋更正與撤銷；CSV 一次一張表（table=ledger|requests|corrections）。"""
     user = viewer(request)
     since, until = _day(since, "起日"), _day(until, "迄日")
     if since and until and since > until:

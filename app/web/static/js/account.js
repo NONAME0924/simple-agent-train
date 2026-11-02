@@ -23,34 +23,74 @@
 
   // ---------- 管理後台 ----------
   const statusLabel = { pending: "待核准", active: "使用中", disabled: "已停用" };
+  const chip = (label, tone) => text("span", label, `chip chip-${tone}`);
   async function loadUsers() {
     const status = byId("admin-status"), list = byId("admin-user-list");
     await guard(status, async () => {
       const { users } = await api("/api/admin/users");
-      status.textContent = `${users.length} 個帳號，${users.filter(u => u.status === "pending").length} 個待核准。`;
-      const act = (user, label, path, method = "POST", body, confirmText) => button(label, () => guard(status, async () => {
+      const pending = users.filter(u => u.status === "pending"), others = users.filter(u => u.status !== "pending");
+      status.textContent = `${users.length} 個帳號，${pending.length} 個待核准。`;
+      const act = (label, path, method = "POST", body, confirmText, tone = "text-button") => button(label, () => guard(status, async () => {
         if (confirmText && !confirm(confirmText)) return;
         await api(path, method, body); await loadUsers();
-      }), label === "刪除" || label === "停用" ? "text-button danger" : "text-button");
-      list.replaceChildren(...users.map(user => {
-        const row = document.createElement("div"); row.className = "admin-row";
-        row.append(text("strong", user.username), text("span", `${user.real_name ? user.real_name + "・" : "（未填實名）・"}${user.role === "admin" ? "管理員" : "一般"}${user.is_treasurer ? "・會計" : ""}・${statusLabel[user.status]}・${user.session_count} 對話・${user.project_count} 專案`, "help-text"));
+      }), tone);
+      const base = user => `/api/admin/users/${encodeURIComponent(user.id)}`;
+      const who = user => {
+        const box = document.createElement("div"); box.className = "admin-who";
+        const avatar = text("span", Array.from(user.real_name || user.username).slice(0, 2).join("").toUpperCase(), "admin-avatar"); avatar.setAttribute("aria-hidden", "true");
+        const names = document.createElement("div");
+        names.append(text("strong", user.real_name || user.username),
+          text("span", user.real_name ? `${user.username}${user.id === currentUser.id ? "・你" : ""}` : `${user.username}・未填實名${user.id === currentUser.id ? "・你" : ""}`, "help-text"));
+        box.append(avatar, names); return box;
+      };
+
+      // 待核准：放在最上面，核准前先看實名
+      byId("admin-pending").hidden = !pending.length;
+      byId("admin-pending-list").replaceChildren(...pending.map(user => {
+        const row = document.createElement("div"); row.className = "admin-pending-row";
         const actions = document.createElement("span"); actions.className = "button-row";
-        const base = `/api/admin/users/${encodeURIComponent(user.id)}`;
-        if (user.status === "pending") actions.append(act(user, "核准", `${base}/status/active`), act(user, "拒絕", base, "DELETE", undefined, `拒絕並刪除 ${user.username} 的申請？`));
-        if (user.status === "active" && user.id !== currentUser.id) actions.append(act(user, "停用", `${base}/status/disabled`, "POST", undefined, `停用 ${user.username}？對方會立即登出，資料保留。`));
-        if (user.status === "disabled") actions.append(act(user, "啟用", `${base}/status/active`), act(user, "刪除", base, "DELETE", undefined, `永久刪除帳號 ${user.username}？（有對話或專案的帳號無法刪除）`));
-        if (user.status === "active")
-          actions.append(act(user, user.is_treasurer ? "取消會計" : "設為會計", `${base}/treasurer`, "POST", { value: !user.is_treasurer }));
-        if (user.status === "active" && user.id !== currentUser.id)
-          actions.append(act(user, user.role === "admin" ? "降為一般" : "設為管理員", `${base}/role`, "POST", { role: user.role === "admin" ? "user" : "admin" }));
+        actions.append(act("拒絕", base(user), "DELETE", undefined, `拒絕並刪除 ${user.real_name || user.username} 的申請？`, "secondary-button danger"),
+          act("核准", `${base(user)}/status/active`, "POST", undefined, undefined, "primary-button"));
+        row.append(who(user), text("span", `申請於 ${user.created_at}`, "help-text"), actions); return row;
+      }));
+
+      // 其餘帳號：表格
+      const table = document.createElement("table"); table.className = "admin-table";
+      const head = document.createElement("tr");
+      for (const label of ["使用者", "角色", "狀態", "會計", "對話／專案", "操作"]) head.append(text("th", label));
+      const thead = document.createElement("thead"); thead.append(head);
+      const tbody = document.createElement("tbody");
+      for (const user of others) {
+        const tr = document.createElement("tr"), self = user.id === currentUser.id;
+        const cell = (...nodes) => { const td = document.createElement("td"); td.append(...nodes); tr.append(td); return td; };
+        cell(who(user));
+        cell(chip(user.role === "admin" ? "管理員" : "成員", user.role === "admin" ? "blue" : "gray"));
+        cell(user.status === "active" ? chip("使用中", "green") : chip("已停用", "red"));
+        const toggle = button("", () => guard(status, async () => {
+          await api(`${base(user)}/treasurer`, "POST", { value: !user.is_treasurer }); await loadUsers(); window.refreshFinanceBadge?.();
+        }), "switch");
+        toggle.setAttribute("role", "switch"); toggle.setAttribute("aria-checked", String(user.is_treasurer));
+        toggle.setAttribute("aria-label", `${user.real_name || user.username} 是否為會計`);
+        toggle.disabled = user.status !== "active"; toggle.title = toggle.disabled ? "只能指派使用中的帳號" : "切換會計身分";
+        cell(toggle);
+        cell(text("span", `${user.session_count}／${user.project_count}`, "help-text"));
+        const actions = document.createElement("span"); actions.className = "button-row admin-actions";
+        if (user.status === "active" && !self) {
+          actions.append(act(user.role === "admin" ? "降為一般" : "設為管理員", `${base(user)}/role`, "POST", { role: user.role === "admin" ? "user" : "admin" }),
+            act("停用", `${base(user)}/status/disabled`, "POST", undefined, `停用 ${user.username}？對方會立即登出，資料保留。`, "text-button danger"));
+        }
+        if (user.status === "disabled") actions.append(act("啟用", `${base(user)}/status/active`),
+          act("刪除", base(user), "DELETE", undefined, `永久刪除帳號 ${user.username}？（有對話、專案或請款的帳號無法刪除）`, "text-button danger"));
         actions.append(button("重設密碼", () => guard(status, async () => {
           const password = prompt(`輸入 ${user.username} 的新密碼（8 字以上）；對方的登入會全部失效：`);
           if (!password) return;
-          await api(`${base}/password`, "POST", { password }); status.textContent = `已重設 ${user.username} 的密碼。`;
+          await api(`${base(user)}/password`, "POST", { password }); status.textContent = `已重設 ${user.username} 的密碼。`;
         })));
-        row.append(actions); return row;
-      }));
+        cell(actions).className = "admin-actions-cell";
+        tbody.append(tr);
+      }
+      table.append(thead, tbody);
+      list.replaceChildren(table);
     });
   }
   async function loadAllSessions() {

@@ -1,4 +1,4 @@
-"""公帳匯出：CSV（流水帳或請款明細各一份）與 Excel（總覽＋流水帳＋請款明細）。
+"""公帳匯出：CSV（流水帳、請款明細、更正與撤銷各一份）與 Excel（總覽＋以上三張）。
 申請人的事由等文字是使用者輸入，開頭是 = + - @ 的儲存格一律當成純文字，避免用 Excel 開啟時被當成公式執行。"""
 import csv
 import datetime
@@ -7,6 +7,8 @@ import io
 STATUS = {"pending": "審核中", "approved": "已通過", "rejected": "已退回", "withdrawn": "已撤回"}
 KIND = {"add": "加錢", "subtract": "減錢", "expense": "請款核銷"}
 LEDGER_HEAD = ["時間", "種類", "金額", "當時餘額", "備註", "經手人", "請款單號"]
+CORRECTION_HEAD = ["時間", "動作", "請款單號", "申請人", "原金額", "新金額", "剩餘變動", "原因", "經手人"]
+CORRECTION_KIND = {"corrected": "更正金額", "revoked": "撤銷通過"}
 REQUEST_HEAD = ["單號", "送出時間", "申請人", "事由", "申請金額", "核定金額", "狀態", "審核人", "審核時間", "退回原因", "調整或更正原因", "照片張數"]
 _FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
 
@@ -32,12 +34,19 @@ def request_rows(data):
     return rows
 
 
+def correction_rows(data):
+    return [[c["created_at"], CORRECTION_KIND.get(c["kind"], c["kind"]), c["request_id"], c["requester"], c["amount_before"],
+             c["amount_after"] if c["amount_after"] is not None else "", c["refund"], c["note"], c["actor_name"]] for c in data["corrections"]]
+
+
 def _safe(value):
     return "'" + value if isinstance(value, str) and value.startswith(_FORMULA_START) else value
 
 
 def build_csv(data, table):
-    head, rows = (LEDGER_HEAD, ledger_rows(data)) if table == "ledger" else (REQUEST_HEAD, request_rows(data))
+    head, rows = {"ledger": (LEDGER_HEAD, ledger_rows), "requests": (REQUEST_HEAD, request_rows),
+                  "corrections": (CORRECTION_HEAD, correction_rows)}[table]
+    rows = rows(data)
     out = io.StringIO(newline="")
     writer = csv.writer(out)
     writer.writerow(head)
@@ -86,6 +95,7 @@ def build_xlsx(data):
     ws.column_dimensions["B"].width = 24
     sheet(wb.create_sheet("流水帳"), LEDGER_HEAD, ledger_rows(data), {3, 4}, [20, 14, 12, 14, 44, 14, 10])
     sheet(wb.create_sheet("請款明細"), REQUEST_HEAD, request_rows(data), {5, 6}, [8, 20, 22, 40, 12, 12, 10, 14, 20, 30, 30, 10])
+    sheet(wb.create_sheet("更正與撤銷"), CORRECTION_HEAD, correction_rows(data), {5, 6, 7}, [20, 12, 10, 22, 12, 12, 12, 40, 14])
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()

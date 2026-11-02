@@ -329,3 +329,32 @@ body:not([data-view="chat"]) :is(#sidebar,#main-column,#workspace-drawer,#panel-
 }
 .fin-export { display:flex; flex-direction:column; gap:10px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--page); }
 .fin-export .help-text { margin:0; }
+
+/* 管理：待核准與帳號表格 */
+.admin-pending { padding:14px 18px; border:1px solid var(--warn-bg); border-radius:12px; background:color-mix(in srgb, var(--warn-bg) 55%, var(--page)); display:flex; flex-direction:column; gap:6px; }
+.admin-pending h3 { color:var(--warn); }
+.admin-pending-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; padding:8px 0; border-top:1px solid var(--warn-bg); }
+.admin-pending-row .help-text { margin:0; flex:1; min-width:140px; }
+.admin-table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--page); }
+.admin-table { width:100%; border-collapse:collapse; font-size:13px; }
+.admin-table th { text-align:left; font-weight:500; font-size:12px; color:var(--muted); padding:11px 16px; background:var(--surface); border-bottom:1px solid var(--line); white-space:nowrap; }
+.admin-table td { padding:10px 16px; border-bottom:1px solid var(--line); vertical-align:middle; }
+.admin-table tr:last-child td { border-bottom:0; }
+.admin-actions-cell { text-align:right; }
+.admin-actions { justify-content:flex-end; flex-wrap:nowrap; }
+.admin-who { display:flex; align-items:center; gap:10px; min-width:160px; }
+.admin-who > div { display:flex; flex-direction:column; }
+.admin-who .help-text { margin:0; font-size:11px; }
+.admin-avatar { width:32px; height:32px; flex-shrink:0; border-radius:50%; display:grid; place-items:center; background:var(--selected); color:var(--accent); font-size:12px; font-weight:500; }
+.chip { display:inline-block; padding:0 9px; border-radius:10px; font-size:11px; line-height:20px; white-space:nowrap; }
+.chip-blue { background:var(--selected); color:var(--accent); }
+.chip-gray { background:var(--surface); color:var(--muted); }
+.chip-green { background:var(--ok-bg); color:var(--ok); }
+.chip-red { background:var(--bad-bg); color:var(--bad); }
+.switch { position:relative; width:38px; height:22px; border-radius:11px; background:var(--field-line); flex-shrink:0; }
+.switch::after { content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .15s; }
+.switch[aria-checked="true"] { background:var(--ok); }
+.switch[aria-checked="true"]::after { left:19px; }
+.admin-create-box { display:flex; flex-direction:column; gap:10px; padding:14px 18px; border:1px solid var(--line); border-radius:12px; background:var(--page); }
+.admin-create-box h3 .help-text { display:inline; margin-left:6px; font-weight:400; }
+#admin-user-list.admin-table-wrap { padding:0; }

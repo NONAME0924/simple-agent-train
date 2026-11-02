@@ -77,12 +77,25 @@ CREATE TABLE IF NOT EXISTS expense_images (
 CREATE TABLE IF NOT EXISTS request_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     request_id INTEGER NOT NULL REFERENCES expense_requests(id),
-    kind TEXT NOT NULL CHECK(kind IN ('submitted','amount_adjusted','approved','rejected','withdrawn','corrected','revoked')),
+    kind TEXT NOT NULL CHECK(kind IN ('submitted','amount_adjusted','approved','rejected','withdrawn')),
     actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
     amount_before INTEGER, amount_after INTEGER,
     note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_event_request ON request_events(request_id, id);
+-- 通過後的更正與撤銷另記一張表（只新增，不動舊表）。種類由程式檢查，以後加新種類不必改資料表。
+CREATE TABLE IF NOT EXISTS request_corrections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL REFERENCES expense_requests(id),
+    kind TEXT NOT NULL,
+    amount_before INTEGER NOT NULL,
+    amount_after INTEGER,
+    refund INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_correction_request ON request_corrections(request_id, id);
 CREATE TABLE IF NOT EXISTS fund_ledger (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL CHECK(kind IN ('add','subtract','expense')),
@@ -104,38 +117,11 @@ class FinanceManager:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as conn:
             conn.executescript(SCHEMA)
-            self._upgrade_events_table(conn)
-            for table in ("fund_ledger", "request_events"):  # 帳務紀錄只能新增
+            for table in ("fund_ledger", "request_events", "request_corrections"):  # 帳務紀錄只能新增
                 for action in ("UPDATE", "DELETE"):
                     conn.execute(f"""CREATE TRIGGER IF NOT EXISTS {table}_no_{action.lower()} BEFORE {action} ON {table}
                         BEGIN SELECT RAISE(ABORT, '帳務紀錄只能新增，不能修改或刪除'); END""")
         self._migrate_legacy()
-
-    @staticmethod
-    def _upgrade_events_table(conn):
-        """舊資料庫的事件表不認得 corrected／revoked；SQLite 不能改 CHECK，只能重建一次（資料原樣搬過去）。"""
-        sql = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='request_events'").fetchone()[0]
-        if "'revoked'" in sql:
-            return
-        try:
-            conn.executescript("""BEGIN;
-                CREATE TABLE request_events_new (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    request_id INTEGER NOT NULL REFERENCES expense_requests(id),
-                    kind TEXT NOT NULL CHECK(kind IN ('submitted','amount_adjusted','approved','rejected','withdrawn','corrected','revoked')),
-                    actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
-                    amount_before INTEGER, amount_after INTEGER,
-                    note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
-                INSERT INTO request_events_new (id, request_id, kind, actor_id, actor_name, amount_before, amount_after, note, created_at)
-                    SELECT id, request_id, kind, actor_id, actor_name, amount_before, amount_after, note, created_at FROM request_events;
-                DROP TABLE request_events;
-                ALTER TABLE request_events_new RENAME TO request_events;
-                CREATE INDEX IF NOT EXISTS idx_event_request ON request_events(request_id, id);
-                COMMIT;""")
-        except sqlite3.Error:
-            conn.rollback()
-            raise
-        log("finance.events_table_upgraded")
 
     def _conn(self, readonly=False):
         if readonly:  # 查詢一律走唯讀連線，物理上改不了帳。
@@ -192,6 +178,22 @@ class FinanceManager:
     def _event(conn, request_id, kind, actor_id, actor_name, before, after, note, when=None):
         conn.execute("""INSERT INTO request_events (request_id, kind, actor_id, actor_name, amount_before, amount_after, note, created_at)
             VALUES (?,?,?,?,?,?,?,?)""", (request_id, kind, actor_id, actor_name, before, after, note, when or _now()))
+
+    CORRECTION_KINDS = {"corrected": "會計更正已通過金額", "revoked": "會計撤銷通過"}
+
+    @classmethod
+    def _correction(cls, conn, request_id, kind, before, after, refund, note, actor, when):
+        """refund：這次回到剩餘的錢（正數＝退回，負數＝多扣）。"""
+        if kind not in cls.CORRECTION_KINDS:
+            raise ValueError(f"未知的更正種類：{kind}")
+        conn.execute("""INSERT INTO request_corrections (request_id, kind, amount_before, amount_after, refund, note, actor_id, actor_name, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?)""", (request_id, kind, before, after, refund, note, actor["id"], actor["username"], when))
+
+    def corrections(self, request_id=None, since=None, until_exclusive=None):
+        with self._conn(readonly=True) as conn:
+            return [dict(r) for r in conn.execute("""SELECT * FROM request_corrections WHERE (? IS NULL OR request_id=?)
+                AND (? IS NULL OR created_at>=?) AND (? IS NULL OR created_at<?) ORDER BY id""",
+                (request_id, request_id, since, since, until_exclusive, until_exclusive))]
 
     # ---------- 讀取輔助 ----------
     @staticmethod
@@ -321,7 +323,7 @@ class FinanceManager:
                          (-delta, f"更正 #{request_id}（{row['amount']:,}→{amount:,}）：{note}", request_id, actor["id"], actor["username"], now))
             conn.execute("UPDATE expense_requests SET amount=?, original_amount=?, adjust_note=? WHERE id=?",
                          (amount, None if amount == original else original, "" if amount == original else note, request_id))
-            self._event(conn, request_id, "corrected", actor["id"], actor["username"], row["amount"], amount, note, now)
+            self._correction(conn, request_id, "corrected", row["amount"], amount, -delta, note, actor, now)
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -346,7 +348,7 @@ class FinanceManager:
             conn.execute("INSERT INTO fund_ledger (kind, amount, note, request_id, actor_id, actor_name, created_at) VALUES ('expense',?,?,?,?,?,?)",
                          (row["amount"], f"撤銷通過 #{request_id}：{note}", request_id, actor["id"], actor["username"], now))
             conn.execute("UPDATE expense_requests SET status='pending', decided_at=NULL, decided_by=NULL, decided_by_name=NULL WHERE id=?", (request_id,))
-            self._event(conn, request_id, "revoked", actor["id"], actor["username"], row["amount"], None, note, now)
+            self._correction(conn, request_id, "revoked", row["amount"], None, row["amount"], note, actor, now)
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -413,10 +415,15 @@ class FinanceManager:
                     ledger.append({**dict(row), "balance": balance})
             requests = [dict(row) for row in conn.execute("""SELECT r.*, (SELECT COUNT(*) FROM expense_images i WHERE i.request_id=r.id) AS images FROM expense_requests r
                 WHERE (? IS NULL OR r.created_at>=?) AND (? IS NULL OR r.created_at<?) ORDER BY r.id LIMIT ?""", (since, since, until_exclusive, until_exclusive, limit))]
-        names = real_name_map([r["user_id"] for r in requests])
+            owners = {r["id"]: (r["user_id"], r["user_name"]) for r in conn.execute("SELECT id, user_id, user_name FROM expense_requests")}
+            fixes = [dict(r) for r in conn.execute("""SELECT * FROM request_corrections WHERE (? IS NULL OR created_at>=?) AND (? IS NULL OR created_at<?)
+                ORDER BY id LIMIT ?""", (since, since, until_exclusive, until_exclusive, limit))]
+        names = real_name_map([r["user_id"] for r in requests] + [owners[f["request_id"]][0] for f in fixes])
         for r in requests:
             r["requester"] = label_for(names, r["user_id"], r["user_name"])
-        return {"summary": self.summary(), "ledger": ledger[:limit], "requests": requests, "since": since, "until": until}
+        for f in fixes:
+            f["requester"] = label_for(names, *owners[f["request_id"]])
+        return {"summary": self.summary(), "ledger": ledger[:limit], "requests": requests, "corrections": fixes, "since": since, "until": until}
 
 
 finance_manager = FinanceManager()
@@ -556,14 +563,19 @@ class FinanceReader:
         if not item or (item["user_id"] != p.id and not p.can_view_all):
             return "找不到這筆請款，或你沒有權限查看。"  # 兩種情況回同一句，不洩漏他人請款是否存在。
         with self.manager._conn(readonly=True) as conn:
-            events = conn.execute("SELECT * FROM request_events WHERE request_id=? ORDER BY id", (request_id,)).fetchall()
+            events = [dict(e) for e in conn.execute("SELECT * FROM request_events WHERE request_id=? ORDER BY id", (request_id,))]
+        events += self.manager.corrections(request_id)
+        events.sort(key=lambda e: e["created_at"])  # 穩定排序：同一秒內維持各表原本順序
+        # corrected／revoked 也列在這裡：上一版曾把它們寫進 request_events，那些舊紀錄照樣看得懂。
         names = {"submitted": "送出", "amount_adjusted": "會計調整金額", "approved": "通過並扣款", "rejected": "退回", "withdrawn": "申請人撤回",
-                 "corrected": "會計更正已通過金額", "revoked": "會計撤銷通過"}
+                 **FinanceManager.CORRECTION_KINDS}
         trail = []
         for e in events:
             money = f"（{_money(e['amount_before'])}→{_money(e['amount_after'])}）" if e["kind"] in ("amount_adjusted", "corrected") else ""
             note = f"：{e['note']}" if e["note"] else ""
-            trail.append(f"{e['created_at']} {names[e['kind']]}{money} {e['actor_name']}{note}")
+            refund = e.get("refund")
+            money += "" if not refund else f"（剩餘{'退回' if refund > 0 else '多扣'} {_money(abs(refund))}）"
+            trail.append(f"{e['created_at']} {names.get(e['kind'], e['kind'])}{money} {e['actor_name']}{note}")
         who = label_for(real_name_map([item["user_id"]]), item["user_id"], item["user_name"]) if p.can_view_all else None
         head = _line({**item, "images": len(item["images"])}, who)
         return head + "\n處理紀錄：\n" + "\n".join(trail)

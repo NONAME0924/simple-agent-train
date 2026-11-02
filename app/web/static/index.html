@@ -271,9 +271,10 @@
               <label>迄日<input id="fin-export-until" type="date"></label>
             </div>
             <div class="button-row">
-              <button type="button" class="secondary-button" data-export="xlsx">下載 Excel（總覽＋流水帳＋請款明細）</button>
+              <button type="button" class="secondary-button" data-export="xlsx">下載 Excel（總覽＋流水帳＋請款明細＋更正與撤銷）</button>
               <button type="button" class="secondary-button" data-export="csv" data-table="ledger">流水帳 CSV</button>
               <button type="button" class="secondary-button" data-export="csv" data-table="requests">請款明細 CSV</button>
+              <button type="button" class="secondary-button" data-export="csv" data-table="corrections">更正與撤銷 CSV</button>
             </div>
             <p class="help-text">日期只篩流水帳與請款明細；總金額、已核銷、目前剩餘一律是匯出當下的累計。收據照片不包含在檔案內。</p>
           </form>
@@ -299,6 +300,13 @@
       <div class="modal-body pane-body">
         <p id="admin-status" class="help-text" role="status"></p>
         <section id="admin-users">
+          <div id="admin-pending" class="admin-pending" hidden>
+            <h3>等待核准的註冊</h3>
+            <div id="admin-pending-list"></div>
+          </div>
+          <div id="admin-user-list" class="admin-table-wrap"></div>
+          <div class="admin-create-box">
+            <h3>直接建立帳號 <span class="help-text">建立後立即啟用，不需核准</span></h3>
           <form id="admin-create" class="button-row">
             <input id="admin-new-name" placeholder="新帳號" maxlength="32" required aria-label="新帳號">
             <input id="admin-new-realname" placeholder="真實姓名" maxlength="30" required aria-label="真實姓名">
@@ -306,7 +314,7 @@
             <select id="admin-new-role" aria-label="角色"><option value="user">一般使用者</option><option value="admin">管理員</option></select>
             <button class="secondary-button">建立（直接啟用）</button>
           </form>
-          <div id="admin-user-list"></div>
+          </div>
         </section>
         <section id="admin-sessions" hidden>
           <p class="help-text">可檢視所有人的對話；管理員對他人的對話唯讀，只能刪除。</p>

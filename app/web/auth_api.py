@@ -14,6 +14,10 @@ class Credentials(BaseModel):
     password: str = Field(max_length=256)
 
 
+class Registration(Credentials):
+    real_name: str = Field(max_length=64)
+
+
 class PasswordChange(BaseModel):
     old_password: str = Field(max_length=256)
     new_password: str = Field(max_length=256)
@@ -31,6 +35,7 @@ class AdminCreate(BaseModel):
     username: str = Field(max_length=64)
     password: str = Field(max_length=256)
     role: str = "user"
+    real_name: str = Field(max_length=64)
 
 
 def _source(request: Request):
@@ -53,12 +58,12 @@ def login(data: Credentials, request: Request, response: Response):
 
 
 @router.post("/api/auth/register")
-def register(data: Credentials, request: Request):
+def register(data: Registration, request: Request):
     key = _source(request)
     if register_throttle.blocked(key):
         raise HTTPException(status_code=429, detail="註冊太頻繁，請稍後再試。")
     register_throttle.add(key)
-    _run(lambda: user_manager.create_user(data.username, data.password, "user", "pending"))
+    _run(lambda: user_manager.create_user(data.username, data.password, "user", "pending", data.real_name, True))
     return {"status": "pending", "message": "已送出申請，等管理員核准後即可登入。"}
 
 
@@ -93,7 +98,7 @@ def admin_users():
 
 @router.post("/api/admin/users")
 def admin_create_user(data: AdminCreate):
-    return public(_run(lambda: user_manager.create_user(data.username, data.password, data.role, "active")))
+    return public(_run(lambda: user_manager.create_user(data.username, data.password, data.role, "active", data.real_name, True)))
 
 
 @router.post("/api/admin/users/{user_id}/status/{status}")

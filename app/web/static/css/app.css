@@ -327,3 +327,5 @@ body:not([data-view="chat"]) :is(#sidebar,#main-column,#workspace-drawer,#panel-
   .pane-body { padding:16px 14px; }
   .fin-summary { grid-template-columns:1fr; }
 }
+.fin-export { display:flex; flex-direction:column; gap:10px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--page); }
+.fin-export .help-text { margin:0; }

@@ -22,6 +22,8 @@ function setAuthMode(register) {
   document.getElementById("auth-switch").textContent = register ? "已有帳號？登入" : "申請帳號";
   document.getElementById("auth-password").autocomplete = register ? "new-password" : "current-password";
   document.getElementById("auth-hint").hidden = !register;
+  document.getElementById("auth-realname-row").hidden = !register;
+  document.getElementById("auth-realname").required = register;
 }
 
 function showLogin(message = "") {
@@ -68,6 +70,7 @@ authForm.addEventListener("submit", async event => {
   event.preventDefault();
   const error = document.getElementById("auth-error");
   const body = { username: document.getElementById("auth-username").value.trim(), password: document.getElementById("auth-password").value };
+  if (registerMode) body.real_name = document.getElementById("auth-realname").value.trim();
   error.style.color = ""; error.textContent = "";
   try {
     const response = await nativeFetch(registerMode ? "/api/auth/register" : "/api/auth/login", {
@@ -76,6 +79,7 @@ authForm.addEventListener("submit", async event => {
     if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "操作失敗，請確認輸入。");
     document.getElementById("auth-password").value = "";
     if (registerMode) {
+      document.getElementById("auth-realname").value = "";
       setAuthMode(false); error.style.color = "var(--accent)"; error.textContent = data.message;
       return;
     }

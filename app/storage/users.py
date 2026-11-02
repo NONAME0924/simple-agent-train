@@ -7,6 +7,7 @@ import secrets
 import sqlite3
 import threading
 import time
+import unicodedata
 import uuid
 from app.config import ADMIN_PASSWORD, ADMIN_USERNAME, AUTH_SESSION_DAYS
 from app.logging_setup import log
@@ -49,6 +50,14 @@ def check_username(username):
     return username
 
 
+def check_real_name(name):
+    """實名：2～30 個字，不含控制字元；多餘空白合併成一個。"""
+    name = re.sub(r"\s+", " ", (name or "").strip()) if isinstance(name, str) else ""
+    if not 2 <= len(name) <= 30 or any(unicodedata.category(ch).startswith("C") for ch in name):
+        raise AuthError("請填寫真實姓名（2～30 個字）。")
+    return name
+
+
 def check_password(password):
     if not isinstance(password, str) or not MIN_PASSWORD <= len(password) <= MAX_PASSWORD:
         raise AuthError(f"密碼須為 {MIN_PASSWORD}～{MAX_PASSWORD} 個字元。")
@@ -67,6 +76,7 @@ def public(row):
     """不含密碼雜湊的使用者資料。"""
     item = {k: row[k] for k in ("id", "username", "role", "status", "created_at", "last_login_at")}
     item["is_treasurer"] = bool(row["is_treasurer"])
+    item["real_name"] = row["real_name"] if "real_name" in row.keys() else ""
     return item
 
 
@@ -103,15 +113,16 @@ class UserManager:
         return self.memory._get_connection()
 
     # ---------- 建立與查詢 ----------
-    def create_user(self, username, password, role="user", status="pending"):
+    def create_user(self, username, password, role="user", status="pending", real_name="", require_real_name=False):
         username, password = check_username(username), check_password(password)
+        real_name = check_real_name(real_name) if (real_name or require_real_name) else ""
         if role not in ROLES or status not in STATUSES:
             raise AuthError("角色或狀態無效。")
         user_id = f"u_{uuid.uuid4().hex[:12]}"
         try:
             with self._conn() as conn:
-                conn.execute("INSERT INTO users (id, username, password_hash, role, status, created_at) VALUES (?,?,?,?,?,?)",
-                             (user_id, username, hash_password(password), role, status, _now()))
+                conn.execute("INSERT INTO users (id, username, password_hash, role, status, created_at, real_name) VALUES (?,?,?,?,?,?,?)",
+                             (user_id, username, hash_password(password), role, status, _now(), real_name))
         except sqlite3.IntegrityError:
             raise AuthError("這個帳號名稱已被使用。", 409)
         log("auth.user_created", user_id=user_id, username=username, role=role, status=status)

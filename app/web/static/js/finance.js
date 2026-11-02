@@ -56,6 +56,25 @@
         if (!confirm("撤回這筆請款？")) return; await call(`/api/finance/requests/${request.id}/withdraw`, "POST"); await loadMine();
       }), "text-button danger")] : [])) : [el("p", "還沒有請款紀錄。", "help-text")]));
   }
+  // 通過後只有會計能動：更正金額（補差額）或撤銷通過（錢退回剩餘、請款回到待審）。帳本只新增紀錄，不改舊的。
+  const approvedActions = request => [
+    btn("更正金額", () => guard(async () => {
+      const value = prompt(`更正「${request.description}」已通過的金額（目前 ${money(request.amount)}，新台幣整數）：`, request.amount);
+      if (value === null) return;
+      const note = prompt("更正原因（必填，申請人會看到）："); if (!note || !note.trim()) return;
+      const body = { amount: Number(value), note };
+      try { await call(`/api/finance/requests/${request.id}/correct`, "POST", body); }
+      catch (error) {
+        if (!error.needsConfirm || !confirm(`${error.message}\n\n仍要更正嗎？`)) throw error;
+        await call(`/api/finance/requests/${request.id}/correct`, "POST", { ...body, force: true });
+      }
+      await loadReview(); await refreshBadge();
+    })),
+    btn("撤銷通過", () => guard(async () => {
+      if (!confirm(`撤銷後會把 ${money(request.amount)} 退回剩餘，這筆請款回到「待審核」。確定要撤銷？`)) return;
+      const note = prompt("撤銷原因（必填，會留在紀錄裡）："); if (!note || !note.trim()) return;
+      await call(`/api/finance/requests/${request.id}/revoke`, "POST", { note }); await loadReview(); await refreshBadge();
+    }), "text-button danger")];
   async function loadReview() {
     const filter = byId("fin-filter").value;
     const { requests } = await call(`/api/finance/requests${filter ? `?status=${filter}` : ""}`);
@@ -78,7 +97,7 @@
         btn("退回", () => guard(async () => {
           const reason = prompt("退回原因（必填，申請人會看到）："); if (!reason || !reason.trim()) return;
           await call(`/api/finance/requests/${request.id}/reject`, "POST", { reason }); await loadReview(); await refreshBadge();
-        }), "text-button danger")] : [])) : [el("p", "沒有符合的請款。", "help-text")]));
+        }), "text-button danger")] : request.status === "approved" && me.is_treasurer ? approvedActions(request) : [])) : [el("p", "沒有符合的請款。", "help-text")]));
   }
   async function loadFund() {
     const fund = await call("/api/finance/fund");
@@ -88,7 +107,7 @@
     const names = { add: "加錢", subtract: "減錢", expense: "請款核銷" };
     byId("fin-ledger").replaceChildren(...(fund.ledger.length ? fund.ledger.map(row => {
       const line = el("div", undefined, "fin-row");
-      line.append(el("span", row.created_at, "help-text"), el("span", `${names[row.kind]}：${row.note}（${row.actor_name}）`),
+      line.append(el("span", row.created_at, "help-text"), el("span", `${row.kind === "expense" && row.amount > 0 ? "核銷更正／撤銷" : names[row.kind]}：${row.note}（${row.actor_name}）`),
         el("strong", `${row.amount > 0 ? "+" : "-"}${Math.abs(row.amount).toLocaleString("zh-TW")}`, row.amount > 0 ? "plus" : "minus"));
       return line;
     }) : [el("p", "還沒有任何紀錄。", "help-text")]));
@@ -109,6 +128,18 @@
   }
   byId("btn-finance").onclick = () => { byId("finance-modal").classList.remove("hidden"); status(""); tab("mine"); };
   for (const key of ["mine", "review", "fund"]) byId(`fin-tab-${key}`).onclick = () => tab(key);
+  for (const button of document.querySelectorAll("#fin-export [data-export]")) button.onclick = () => guard(async () => {
+    const query = new URLSearchParams({ format: button.dataset.export });
+    if (button.dataset.table) query.set("table", button.dataset.table);
+    for (const [key, id] of [["since", "fin-export-since"], ["until", "fin-export-until"]]) if (byId(id).value) query.set(key, byId(id).value);
+    const response = await fetch(`/api/finance/export?${query}`);
+    if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(typeof data.detail === "string" ? data.detail : "匯出失敗，請確認日期。"); }
+    const blob = await response.blob(), url = URL.createObjectURL(blob);
+    const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] || "finance";
+    const link = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    status(`已匯出 ${name}。`);
+  });
   byId("fin-filter").onchange = () => guard(loadReview);
   byId("fin-refresh").onclick = () => guard(async () => { await refreshBadge(); await loadReview(); });
 

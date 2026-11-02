@@ -34,7 +34,7 @@
       }), label === "刪除" || label === "停用" ? "text-button danger" : "text-button");
       list.replaceChildren(...users.map(user => {
         const row = document.createElement("div"); row.className = "admin-row";
-        row.append(text("strong", user.username), text("span", `${user.role === "admin" ? "管理員" : "一般"}${user.is_treasurer ? "・會計" : ""}・${statusLabel[user.status]}・${user.session_count} 對話・${user.project_count} 專案`, "help-text"));
+        row.append(text("strong", user.username), text("span", `${user.real_name ? user.real_name + "・" : "（未填實名）・"}${user.role === "admin" ? "管理員" : "一般"}${user.is_treasurer ? "・會計" : ""}・${statusLabel[user.status]}・${user.session_count} 對話・${user.project_count} 專案`, "help-text"));
         const actions = document.createElement("span"); actions.className = "button-row";
         const base = `/api/admin/users/${encodeURIComponent(user.id)}`;
         if (user.status === "pending") actions.append(act(user, "核准", `${base}/status/active`), act(user, "拒絕", base, "DELETE", undefined, `拒絕並刪除 ${user.username} 的申請？`));
@@ -94,8 +94,8 @@
   byId("admin-create").onsubmit = async event => {
     event.preventDefault();
     await guard(byId("admin-status"), async () => {
-      await api("/api/admin/users", "POST", { username: byId("admin-new-name").value.trim(), password: byId("admin-new-password").value, role: byId("admin-new-role").value });
-      byId("admin-new-name").value = byId("admin-new-password").value = ""; await loadUsers();
+      await api("/api/admin/users", "POST", { username: byId("admin-new-name").value.trim(), real_name: byId("admin-new-realname").value.trim(), password: byId("admin-new-password").value, role: byId("admin-new-role").value });
+      byId("admin-new-name").value = byId("admin-new-realname").value = byId("admin-new-password").value = ""; await loadUsers();
     });
   };
 

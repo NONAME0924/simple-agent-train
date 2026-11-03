@@ -57,7 +57,7 @@
       // 其餘帳號：表格
       const table = document.createElement("table"); table.className = "admin-table";
       const head = document.createElement("tr");
-      for (const label of ["使用者", "角色", "狀態", "會計", "對話／專案", "操作"]) head.append(text("th", label));
+      for (const label of ["使用者", "角色", "狀態", "會計", "設備管理", "對話／專案", "操作"]) head.append(text("th", label));
       const thead = document.createElement("thead"); thead.append(head);
       const tbody = document.createElement("tbody");
       for (const user of others) {
@@ -66,13 +66,17 @@
         cell(who(user));
         cell(chip(user.role === "admin" ? "管理員" : "成員", user.role === "admin" ? "blue" : "gray"));
         cell(user.status === "active" ? chip("使用中", "green") : chip("已停用", "red"));
-        const toggle = button("", () => guard(status, async () => {
-          await api(`${base(user)}/treasurer`, "POST", { value: !user.is_treasurer }); await loadUsers(); window.refreshFinanceBadge?.();
-        }), "switch");
-        toggle.setAttribute("role", "switch"); toggle.setAttribute("aria-checked", String(user.is_treasurer));
-        toggle.setAttribute("aria-label", `${user.real_name || user.username} 是否為會計`);
-        toggle.disabled = user.status !== "active"; toggle.title = toggle.disabled ? "只能指派使用中的帳號" : "切換會計身分";
-        cell(toggle);
+        const toggle = (field, path, label, after) => {
+          const node = button("", () => guard(status, async () => {
+            await api(`${base(user)}/${path}`, "POST", { value: !user[field] }); await loadUsers(); after?.();
+          }), "switch");
+          node.setAttribute("role", "switch"); node.setAttribute("aria-checked", String(Boolean(user[field])));
+          node.setAttribute("aria-label", `${user.real_name || user.username} 是否為${label}`); node.dataset.role = path;
+          node.disabled = user.status !== "active"; node.title = node.disabled ? "只能指派使用中的帳號" : `切換${label}身分`;
+          return node;
+        };
+        cell(toggle("is_treasurer", "treasurer", "會計", () => window.refreshFinanceBadge?.()));
+        cell(toggle("is_equipment_manager", "equipment_manager", "設備管理", () => window.refreshEquipmentRole?.()));
         cell(text("span", `${user.session_count}／${user.project_count}`, "help-text"));
         const actions = document.createElement("span"); actions.className = "button-row admin-actions";
         if (user.status === "active" && !self) {
@@ -123,11 +127,23 @@
     });
   }
   function adminTab(name) {
-    byId("admin-users").hidden = name !== "users"; byId("admin-sessions").hidden = name !== "sessions";
-    byId("admin-tab-users").classList.toggle("is-active", name === "users");
-    byId("admin-tab-sessions").classList.toggle("is-active", name === "sessions");
-    (name === "users" ? loadUsers : loadAllSessions)();
+    for (const key of ["users", "sessions", "announce"]) {
+      byId(`admin-${key}`).hidden = name !== key; byId(`admin-tab-${key}`).classList.toggle("is-active", name === key);
+    }
+    byId("admin-status").textContent = "";
+    if (name === "users") loadUsers(); else if (name === "sessions") loadAllSessions();
   }
+  byId("admin-tab-announce").onclick = () => adminTab("announce");
+  byId("announce-form").onsubmit = async event => {
+    event.preventDefault();
+    const status = byId("admin-status");
+    await guard(status, async () => {
+      const to = byId("announce-to");
+      if (!confirm(`發送公告給「${to.selectedOptions[0].textContent}」？`)) return;
+      const { sent } = await api("/api/admin/announce", "POST", { to: to.value, title: byId("announce-title").value, body: byId("announce-body").value });
+      byId("announce-form").reset(); status.textContent = `已送出給 ${sent} 人。`;
+    });
+  };
   byId("btn-admin").onclick = () => { close("account-modal"); open("admin-modal"); adminTab("users"); };
   byId("admin-tab-users").onclick = () => adminTab("users");
   byId("admin-tab-sessions").onclick = () => adminTab("sessions");

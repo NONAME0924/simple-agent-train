@@ -5,6 +5,7 @@ from app.config import AUTH_COOKIE_SECURE, AUTH_SESSION_DAYS
 from app.storage.memory import memory_manager
 from app.storage.users import AuthError, public, register_throttle, user_manager
 from app.web.auth import COOKIE
+from app.storage.notifications import notify
 
 router = APIRouter()
 
@@ -63,7 +64,8 @@ def register(data: Registration, request: Request):
     if register_throttle.blocked(key):
         raise HTTPException(status_code=429, detail="註冊太頻繁，請稍後再試。")
     register_throttle.add(key)
-    _run(lambda: user_manager.create_user(data.username, data.password, "user", "pending", data.real_name, True))
+    user = _run(lambda: user_manager.create_user(data.username, data.password, "user", "pending", data.real_name, True))
+    notify("role:admin", "system", "新的帳號申請", f"{user['real_name']}（{user['username']}）申請帳號，等待核准。", "admin:users")
     return {"status": "pending", "message": "已送出申請，等管理員核准後即可登入。"}
 
 
@@ -108,7 +110,9 @@ def admin_set_status(user_id: str, status: str, request: Request):
 
 @router.post("/api/admin/users/{user_id}/role")
 def admin_set_role(user_id: str, data: RoleChange, request: Request):
-    return public(_run(lambda: user_manager.set_role(user_id, data.role, request.state.user["id"])))
+    user = public(_run(lambda: user_manager.set_role(user_id, data.role, request.state.user["id"])))
+    notify(user_id, request.state.user, "你的權限已變更", "你已被設為管理員。" if data.role == "admin" else "你已改為一般成員。")
+    return user
 
 
 class TreasurerChange(BaseModel):
@@ -117,7 +121,18 @@ class TreasurerChange(BaseModel):
 
 @router.post("/api/admin/users/{user_id}/treasurer")
 def admin_set_treasurer(user_id: str, data: TreasurerChange, request: Request):
-    return public(_run(lambda: user_manager.set_treasurer(user_id, data.value, request.state.user["id"])))
+    user = public(_run(lambda: user_manager.set_treasurer(user_id, data.value, request.state.user["id"])))
+    notify(user_id, request.state.user, "你的權限已變更", "你已被設為會計，可以審核請款與管理經費。" if data.value else "你已不再擔任會計。",
+           "finance:review" if data.value else "")
+    return user
+
+
+@router.post("/api/admin/users/{user_id}/equipment_manager")
+def admin_set_equipment_manager(user_id: str, data: TreasurerChange, request: Request):
+    user = public(_run(lambda: user_manager.set_equipment_manager(user_id, data.value, request.state.user["id"])))
+    notify(user_id, request.state.user, "你的權限已變更", "你已被設為設備管理，可以新增與修改設備。" if data.value else "你已不再擔任設備管理。",
+           "equipment:" if data.value else "")
+    return user
 
 
 @router.post("/api/admin/users/{user_id}/password")

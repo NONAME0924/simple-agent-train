@@ -22,6 +22,8 @@ from app.web.log_api import router as log_router
 from app.web.skill_api import router as skill_router
 from app.web.auth_api import router as auth_router
 from app.web.finance_api import router as finance_router
+from app.web.equipment_api import router as equipment_router
+from app.web.notification_api import router as notification_router
 from app.web.auth import authorize
 from app.storage.users import user_manager
 
@@ -94,6 +96,8 @@ app.include_router(log_router)
 app.include_router(skill_router)
 app.include_router(auth_router)
 app.include_router(finance_router)
+app.include_router(equipment_router)
+app.include_router(notification_router)
 
 
 @app.get("/api/health")

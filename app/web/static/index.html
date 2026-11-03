@@ -18,10 +18,16 @@
     <button id="btn-finance" class="rail-item" data-view="finance" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg><span class="rail-label">報帳</span><span id="finance-badge" class="badge" hidden></span>
     </button>
+    <button id="rail-equipment" class="rail-item" data-view="equipment" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 8h4M7 11h7"/></svg><span class="rail-label">設備</span>
+    </button>
     <button id="rail-admin" class="rail-item" data-view="admin" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="rail-label">管理</span>
     </button>
     <span class="rail-spacer"></span>
+    <button id="btn-notify" class="rail-item" aria-haspopup="dialog" aria-controls="notify-panel" aria-expanded="false" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="rail-label">通知</span><span id="notify-badge" class="badge" hidden></span>
+    </button>
     <button id="theme-toggle" class="rail-item" onclick="toggleTheme()" aria-label="切換顯示模式">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span class="rail-label">暗色</span>
     </button>
@@ -222,6 +228,66 @@
       </form>
     </div>
   </div>
+  <aside id="notify-panel" class="notify-panel hidden" aria-label="通知" role="dialog">
+    <div class="notify-head"><h2>通知</h2><button id="notify-read-all" class="text-button">全部已讀</button><button id="notify-close" class="icon-button" aria-label="關閉通知"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+    <div id="notify-list" class="notify-list"></div>
+  </aside>
+  <section id="equipment-pane" class="modal-overlay view-pane hidden" aria-labelledby="equipment-title">
+    <aside class="pane-side" aria-label="設備選單">
+      <h2 id="equipment-title" class="pane-title">設備</h2>
+      <nav class="pane-nav" id="eq-filters">
+        <button class="pane-nav-item is-active" data-status="">全部</button>
+        <button class="pane-nav-item" data-status="normal">正常</button>
+        <button class="pane-nav-item" data-status="repair">維修中</button>
+        <button class="pane-nav-item" data-status="retired">報廢</button>
+      </nav>
+      <p class="pane-note">所有成員都看得到設備清單；新增與修改由「設備管理」負責，每次變更都會留下紀錄。</p>
+    </aside>
+    <div class="pane-main">
+      <header class="pane-top eq-top"><h1>實驗室設備</h1>
+        <input id="eq-search" type="search" placeholder="搜尋名稱、型號、財產編號、位置、保管人" aria-label="搜尋設備" maxlength="50">
+        <select id="eq-location" aria-label="存放位置"><option value="">所有位置</option></select>
+        <button id="eq-add" class="primary-button" hidden>新增設備</button>
+      </header>
+      <div class="modal-body pane-body">
+        <p id="eq-status" class="help-text" role="status"></p>
+        <div id="eq-list" class="admin-table-wrap"></div>
+        <div class="button-row">
+          <button class="secondary-button" data-eq-export="xlsx">匯出 Excel</button>
+          <button class="secondary-button" data-eq-export="csv">匯出 CSV</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div id="eq-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="eq-modal-title">
+    <div class="modal-sheet admin-sheet">
+      <div class="modal-header"><h2 id="eq-modal-title">設備</h2><span id="eq-modal-state"></span><button class="text-button" data-close="eq-modal">關閉</button></div>
+      <form id="eq-form" class="modal-body eq-form">
+        <div class="eq-grid">
+          <label>名稱（必填）<input name="name" maxlength="100" required></label>
+          <label>型號<input name="model" maxlength="100"></label>
+          <label>財產編號<input name="asset_no" maxlength="60"></label>
+          <label>序號<input name="serial_no" maxlength="100"></label>
+          <label>存放位置<input name="location" maxlength="100" list="eq-location-list"></label>
+          <label>保管人<input name="custodian" maxlength="60"></label>
+          <label>購入日期<input name="purchased_on" type="date"></label>
+          <label>金額（新台幣）<input name="price" type="number" min="0" step="1" inputmode="numeric"></label>
+        </div>
+        <label>備註<textarea name="note" rows="3" maxlength="1000"></textarea></label>
+        <datalist id="eq-location-list"></datalist>
+        <label id="eq-reason-row">變更原因（選填，會記在異動紀錄）<input name="reason" maxlength="300"></label>
+        <p id="eq-form-status" class="runtime-error" role="alert"></p>
+        <div class="button-row" id="eq-actions">
+          <button class="primary-button" id="eq-save">儲存</button>
+          <button type="button" class="secondary-button" data-eq-status="repair">送修</button>
+          <button type="button" class="secondary-button" data-eq-status="normal">恢復正常</button>
+          <button type="button" class="secondary-button danger" data-eq-status="retired">報廢</button>
+        </div>
+        <h3 id="eq-history-title">異動紀錄</h3>
+        <div id="eq-history" class="eq-history"></div>
+      </form>
+    </div>
+  </div>
   <section id="finance-modal" class="modal-overlay view-pane hidden" aria-labelledby="finance-title">
     <aside class="pane-side" aria-label="報帳選單">
       <h2 id="finance-title" class="pane-title">報帳</h2>
@@ -290,6 +356,7 @@
       <nav class="pane-nav">
         <button id="admin-tab-users" class="pane-nav-item is-active">帳號與權限</button>
         <button id="admin-tab-sessions" class="pane-nav-item">所有對話（唯讀）</button>
+        <button id="admin-tab-announce" class="pane-nav-item">發送公告</button>
         <button id="admin-go-fund" class="pane-nav-item">公費總覽（唯讀）</button>
         <button id="admin-go-logs" class="pane-nav-item">系統日誌</button>
       </nav>
@@ -315,6 +382,16 @@
             <button class="secondary-button">建立（直接啟用）</button>
           </form>
           </div>
+        </section>
+        <section id="admin-announce" hidden>
+          <form id="announce-form" class="admin-create-box">
+            <h3>發送公告</h3>
+            <label>通知誰<select id="announce-to"><option value="all">所有成員</option><option value="role:treasurer">會計</option><option value="role:equipment">設備管理</option><option value="role:admin">管理員</option></select></label>
+            <label>標題<input id="announce-title" maxlength="120" required></label>
+            <label>內容<textarea id="announce-body" rows="4" maxlength="1000"></textarea></label>
+            <div class="button-row"><button class="primary-button">送出公告</button></div>
+            <p class="help-text">收到的人會在左側「通知」看到。停用與待核准的帳號不會收到。</p>
+          </form>
         </section>
         <section id="admin-sessions" hidden>
           <p class="help-text">可檢視所有人的對話；管理員對他人的對話唯讀，只能刪除。</p>
@@ -388,6 +465,8 @@
   <script src="/static/js/skill-panel.js"></script>
   <script src="/static/js/account.js"></script>
   <script src="/static/js/finance.js"></script>
+  <script src="/static/js/notify.js"></script>
+  <script src="/static/js/equipment.js"></script>
   <script src="/static/js/shell.js"></script>
 </body>
 </html>

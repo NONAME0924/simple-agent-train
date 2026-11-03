@@ -9,6 +9,7 @@ from app.logging_setup import log
 import datetime
 from app.storage.finance import DATE_RE, FinanceError, MAX_IMAGES, finance_manager, label_for, real_name_map
 from app.storage import finance_export
+from app.storage.notifications import notify
 from app.storage.images import MAX_IMAGE_BYTES, image_info, image_path, save_image
 
 router = APIRouter()
@@ -112,7 +113,16 @@ def create_request(data: NewRequest, request: Request):
             infos.append({key: image_info(_scope(user["id"]), image_id)[key] for key in ("id", "name")})
         except (ValueError, OSError):
             raise HTTPException(status_code=422, detail="照片不存在，請重新上傳。")
-    return _run(lambda: finance_manager.create_request(user, data.amount, data.description, infos))
+    item = _run(lambda: finance_manager.create_request(user, data.amount, data.description, infos))
+    notify("role:treasurer", user, "新的請款待審", f"{label_for(real_name_map([user['id']]), user['id'], user['username'])} 申請 ${item['amount']:,}：{item['description'][:60]}",
+           f"finance:review:{item['id']}")
+    return item
+
+
+def _tell_requester(item, actor, title, body=""):
+    """請款狀態變了就通知申請人本人；財務通知只發給當事人。"""
+    notify(item["user_id"], actor, title, f"#{item['id']} {item['description'][:40]}（${item['amount']:,}）" + (f"：{body}" if body else ""),
+           f"finance:mine:{item['id']}")
 
 
 @router.get("/api/finance/requests/mine")
@@ -152,19 +162,23 @@ def withdraw(request_id: int, request: Request):
 def approve(request_id: int, request: Request, data: Approve = Approve()):
     actor = treasurer(request)
     item = _run(lambda: finance_manager.approve(request_id, actor, data.force))
+    _tell_requester(item, actor, "請款已通過")
     return {"request": item, "fund": finance_manager.summary()}
 
 
 @router.post("/api/finance/requests/{request_id}/amount")
 def change_amount(request_id: int, data: AmountChange, request: Request):
     actor = treasurer(request)
-    return _run(lambda: finance_manager.adjust_request_amount(request_id, data.amount, data.note, actor))
+    item = _run(lambda: finance_manager.adjust_request_amount(request_id, data.amount, data.note, actor))
+    _tell_requester(item, actor, "請款金額已調整", data.note)
+    return item
 
 
 @router.post("/api/finance/requests/{request_id}/correct")
 def correct_approved(request_id: int, data: Correction, request: Request):
     actor = treasurer(request)
     item = _run(lambda: finance_manager.correct_approved(request_id, data.amount, data.note, actor, data.force))
+    _tell_requester(item, actor, "已通過的請款金額被更正", data.note)
     return {"request": item, "fund": finance_manager.summary()}
 
 
@@ -172,13 +186,16 @@ def correct_approved(request_id: int, data: Correction, request: Request):
 def revoke_approval(request_id: int, data: Revoke, request: Request):
     actor = treasurer(request)
     item = _run(lambda: finance_manager.revoke_approval(request_id, actor, data.note))
+    _tell_requester(item, actor, "請款的通過已撤銷，回到審核中", data.note)
     return {"request": item, "fund": finance_manager.summary()}
 
 
 @router.post("/api/finance/requests/{request_id}/reject")
 def reject(request_id: int, data: Reject, request: Request):
     actor = treasurer(request)
-    return _run(lambda: finance_manager.reject(request_id, actor, data.reason))
+    item = _run(lambda: finance_manager.reject(request_id, actor, data.reason))
+    _tell_requester(item, actor, "請款被退回", data.reason)
+    return item
 
 
 @router.get("/api/finance/fund")

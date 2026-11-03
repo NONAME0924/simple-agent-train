@@ -358,3 +358,34 @@ body:not([data-view="chat"]) :is(#sidebar,#main-column,#workspace-drawer,#panel-
 .admin-create-box { display:flex; flex-direction:column; gap:10px; padding:14px 18px; border:1px solid var(--line); border-radius:12px; background:var(--page); }
 .admin-create-box h3 .help-text { display:inline; margin-left:6px; font-weight:400; }
 #admin-user-list.admin-table-wrap { padding:0; }
+
+/* 通知面板 */
+.notify-panel { position:fixed; left:84px; bottom:16px; z-index:75; width:min(380px,calc(100vw - 100px)); max-height:min(560px,80dvh); display:flex; flex-direction:column; background:var(--page); border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 32px rgba(20,30,40,.18); }
+.notify-head { display:flex; align-items:center; gap:8px; padding:12px 14px; border-bottom:1px solid var(--line); }
+.notify-head h2 { flex:1; font-size:15px; }
+.notify-list { overflow:auto; padding:6px; }
+.notify-list > .help-text { padding:12px; }
+.notify-item { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; text-align:left; padding:10px 12px; border-radius:9px; }
+.notify-item:hover { background:var(--hover); }
+.notify-item.is-unread { background:var(--soft); }
+.notify-item.is-unread strong::before { content:""; display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:var(--accent); vertical-align:middle; }
+.notify-item .notify-body { font-size:13px; overflow-wrap:anywhere; }
+.notify-item .help-text { margin:0; font-size:11px; }
+/* 設備 */
+.eq-top { gap:12px; flex-wrap:wrap; }
+.eq-top h1 { margin-right:auto; }
+.eq-top input[type=search] { width:min(320px,100%); }
+.eq-row { cursor:pointer; }
+.eq-row:hover td { background:var(--hover); }
+.eq-sub { display:block; margin:0; font-size:11px; }
+.eq-empty { padding:16px; }
+.chip-warn { background:var(--warn-bg); color:var(--warn); }
+.eq-form { gap:12px; }
+.eq-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px; }
+.eq-history { display:flex; flex-direction:column; }
+.eq-event { display:flex; flex-direction:column; gap:2px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+.eq-event .help-text { margin:0; }
+@media(max-width:760px) {
+  .notify-panel { left:8px; right:8px; bottom:66px; width:auto; }
+  .eq-grid { grid-template-columns:1fr; }
+}

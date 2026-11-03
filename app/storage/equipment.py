@@ -145,6 +145,13 @@ class EquipmentManager:
                 "SELECT * FROM equipment_events WHERE equipment_id=? ORDER BY id DESC", (equipment_id,))]
         return {**dict(row), "events": events}
 
+    def recent_events(self, limit=100):
+        """所有設備的最近異動（設備管理頁用），新的在前。"""
+        with self._conn(readonly=True) as conn:
+            rows = conn.execute("""SELECT ev.*, e.name AS equipment_name FROM equipment_events ev JOIN equipment e ON e.id=ev.equipment_id
+                ORDER BY ev.id DESC LIMIT ?""", (max(1, min(int(limit), 500)),)).fetchall()
+        return [dict(row, changes=json.loads(row["changes"])) for row in rows]
+
     def locations(self):
         with self._conn(readonly=True) as conn:
             return [r[0] for r in conn.execute("SELECT DISTINCT location FROM equipment WHERE location<>'' ORDER BY location")]

@@ -11,18 +11,13 @@
     }
     byId("finance-modal").classList.toggle("hidden", view !== "finance");
     byId("admin-modal").classList.toggle("hidden", view !== "admin");
-    byId("equipment-pane").classList.toggle("hidden", view !== "equipment");
+    byId("equipment-pane").classList.toggle("hidden", view !== "equipment" && view !== "equipment-admin");
   }
   window.setAppView = setView;
   byId("rail-chat").addEventListener("click", () => setView("chat"));
   // 報帳頁的載入由 finance.js 綁在同一顆按鈕上；這裡只切換畫面。
   byId("btn-finance").addEventListener("click", () => setView("finance"));
   byId("rail-admin").addEventListener("click", () => { setView("admin"); byId("btn-admin").click(); });
-  byId("rail-equipment").addEventListener("click", () => { setView("equipment"); window.loadEquipment?.(); });
-  byId("admin-go-fund").addEventListener("click", () => { byId("btn-finance").click(); byId("fin-tab-fund").click(); });
-  byId("admin-go-logs").addEventListener("click", () => {
-    setView("chat");
-    byId("logs-scope").value = "system";
-    openProjectPanel("logs");
-  });
+  byId("rail-equipment").addEventListener("click", () => { setView("equipment"); window.loadEquipment?.("view"); });
+  byId("rail-equipment-admin").addEventListener("click", () => { setView("equipment-admin"); window.loadEquipment?.("manage"); });
 })();

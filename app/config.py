@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 APP_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = APP_DIR / "data"
 FINANCE_DB_PATH = DATA_DIR / "finance.db"  # 公帳獨立資料庫，與對話的 memory.db 分開備份與管理
+EQUIPMENT_DB_PATH = DATA_DIR / "equipment.db"  # 實驗室設備清單與異動紀錄
 WORKSPACE_DIR = str(APP_DIR / "workspace")
 STATIC_DIR = APP_DIR / "app" / "web" / "static"
 

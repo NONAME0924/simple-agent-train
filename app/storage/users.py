@@ -77,6 +77,7 @@ def public(row):
     item = {k: row[k] for k in ("id", "username", "role", "status", "created_at", "last_login_at")}
     item["is_treasurer"] = bool(row["is_treasurer"])
     item["real_name"] = row["real_name"] if "real_name" in row.keys() else ""
+    item["is_equipment_manager"] = bool(row["is_equipment_manager"]) if "is_equipment_manager" in row.keys() else False
     return item
 
 
@@ -245,6 +246,15 @@ class UserManager:
         with self._conn() as conn:
             conn.execute("UPDATE users SET is_treasurer=? WHERE id=?", (1 if value else 0, user_id))
         log("auth.treasurer_changed", user_id=user_id, value=bool(value), actor=actor_id)
+        return self.get(user_id)
+
+    def set_equipment_manager(self, user_id, value, actor_id):
+        user = self._require(user_id)
+        if value and user["status"] != "active":
+            raise AuthError("只能指派使用中的帳號管理設備。", 409)
+        with self._conn() as conn:
+            conn.execute("UPDATE users SET is_equipment_manager=? WHERE id=?", (1 if value else 0, user_id))
+        log("auth.equipment_manager_changed", user_id=user_id, value=bool(value), actor=actor_id)
         return self.get(user_id)
 
     def set_password(self, user_id, password, keep_token=None):

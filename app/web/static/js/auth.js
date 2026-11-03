@@ -31,6 +31,8 @@ function showLogin(message = "") {
   document.getElementById("btn-account").hidden = true;
   document.getElementById("btn-finance").hidden = true;
   document.getElementById("rail-admin").hidden = true;
+  document.getElementById("rail-equipment").hidden = true;
+  document.getElementById("btn-notify").hidden = true;
   window.setAppView?.("chat");
   document.getElementById("auth-error").textContent = message;
   document.getElementById("auth-error").style.color = "";
@@ -48,6 +50,9 @@ function applyUser(user) {
   button.title = user.username + (user.role === "admin" ? "（管理員）" : "") + (user.is_treasurer ? "（會計）" : "");
   button.setAttribute("aria-label", `帳號：${button.title}`);
   document.getElementById("rail-admin").hidden = user.role !== "admin";
+  document.getElementById("rail-equipment").hidden = false;
+  document.getElementById("btn-notify").hidden = false;
+  window.refreshNotify?.();
   // 系統日誌只有管理員能看。
   const system = document.querySelector('#logs-scope option[value="system"]');
   if (system) system.hidden = system.disabled = user.role !== "admin";

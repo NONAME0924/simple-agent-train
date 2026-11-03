@@ -20,7 +20,10 @@
     const [area, sub, id] = (link || "").split(":");
     if (area === "finance") { byId("btn-finance").click(); if (sub === "review") byId("fin-tab-review").click(); }
     else if (area === "admin") byId("rail-admin").click();
-    else if (area === "equipment") { byId("rail-equipment").click(); if (sub) window.openEquipment?.(Number(sub)); }
+    else if (area === "equipment") {
+      byId(currentUser?.is_equipment_manager ? "rail-equipment-admin" : "rail-equipment").click();
+      if (sub) window.openEquipment?.(Number(sub));
+    }
   }
 
   async function load() {

@@ -93,6 +93,12 @@ def export_equipment(request: Request, format: Literal["csv", "xlsx"] = "xlsx"):
                                                      "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
+@router.get("/api/equipment/events")
+def recent_events(request: Request, limit: int = 100):
+    manager(request)
+    return {"events": equipment_manager.recent_events(limit)}
+
+
 @router.get("/api/equipment/{equipment_id}")
 def get_equipment(equipment_id: int):
     item = equipment_manager.get(equipment_id)

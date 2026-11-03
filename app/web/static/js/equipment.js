@@ -6,10 +6,41 @@
     purchased_on: "購入日期", price: "金額", note: "備註", status: "狀態" };
   const el = (tag, content, className) => { const node = document.createElement(tag); if (content !== undefined) node.textContent = content; if (className) node.className = className; return node; };
   const chip = status => el("span", STATUS[status][0], `chip chip-${STATUS[status][1]}`);
-  let filter = "", canManage = false, current = null, timer = null;
+  // 兩種模式：view＝「設備」頁（所有人唯讀）；manage＝「設備管理」頁（新增、修改、送修、報廢、最近異動）
+  let mode = "view", filter = "", canManage = false, current = null, timer = null, showRecent = false;
   const form = byId("eq-form"), formStatus = byId("eq-form-status");
 
-  async function load() {
+  function applyMode() {
+    const manage = mode === "manage";
+    byId("eq-heading").textContent = manage ? "設備管理" : "實驗室設備";
+    byId("equipment-title").textContent = manage ? "設備管理" : "設備";
+    byId("eq-note").textContent = manage ? "在這裡新增、修改、送修或報廢設備；每次變更都會記一筆異動，無法刪除。"
+      : "所有成員都看得到設備清單；新增與修改請到左側「設備管理」（設備管理身分才有）。";
+    byId("eq-recent").hidden = !manage;
+    if (!manage) showRecent = false;
+    document.querySelectorAll("#eq-filters [data-status]").forEach(button => button.classList.toggle("is-active", !showRecent && button.dataset.status === filter));
+    byId("eq-recent").classList.toggle("is-active", showRecent);
+  }
+  async function loadRecent() {
+    const status = byId("eq-status");
+    try {
+      const { events } = await api("/api/equipment/events");
+      status.textContent = `最近 ${events.length} 筆異動。`; byId("eq-add").hidden = false;
+      byId("eq-list").replaceChildren(...(events.length ? [Object.assign(el("div", undefined, "eq-history eq-recent-list"), {})].map(box => {
+        box.append(...events.map(change => {
+          const row = el("button", undefined, "eq-event eq-recent-item"); row.type = "button";
+          const kind = { created: "登記", updated: "修改", status: "狀態變更" }[change.kind] || change.kind;
+          row.append(el("strong", change.equipment_name), el("span", `${change.created_at}・${change.actor_name}・${kind}`, "help-text"), el("span", describe(change)),
+            ...(change.note ? [el("span", `原因：${change.note}`, "help-text")] : []));
+          row.onclick = () => openItem(change.equipment_id); return row;
+        }));
+        return box;
+      }) : [el("p", "還沒有任何異動。", "help-text eq-empty")]));
+    } catch (error) { status.textContent = error.message; }
+  }
+  async function load(nextMode) {
+    if (nextMode) { mode = nextMode; applyMode(); }
+    if (showRecent) return loadRecent();
     const status = byId("eq-status");
     try {
       const query = new URLSearchParams();
@@ -17,13 +48,13 @@
       if (byId("eq-search").value.trim()) query.set("q", byId("eq-search").value.trim());
       if (byId("eq-location").value) query.set("location", byId("eq-location").value);
       const data = await api(`/api/equipment?${query}`);
-      canManage = data.can_manage; byId("eq-add").hidden = !canManage;
+      canManage = data.can_manage && mode === "manage"; byId("eq-add").hidden = !canManage;
       const select = byId("eq-location"), keep = select.value;
       select.replaceChildren(el("option", "所有位置"), ...data.locations.map(name => Object.assign(el("option", name), { value: name })));
       select.firstChild.value = ""; select.value = data.locations.includes(keep) ? keep : "";
       byId("eq-location-list").replaceChildren(...data.locations.map(name => Object.assign(document.createElement("option"), { value: name })));
       status.textContent = `共 ${data.equipment.length} 台。`;
-      if (!data.equipment.length) { byId("eq-list").replaceChildren(el("p", canManage ? "還沒有設備，按右上角「新增設備」開始登記。" : "還沒有登記任何設備。", "help-text eq-empty")); return; }
+      if (!data.equipment.length) { byId("eq-list").replaceChildren(el("p", canManage ? "沒有符合的設備；要登記新設備請按右上角「新增設備」。" : "沒有符合的設備。", "help-text eq-empty")); return; }
       const table = el("table", undefined, "admin-table eq-table"), head = el("tr");
       for (const label of ["名稱", "財產編號", "存放位置", "保管人", "狀態", "購入日期"]) head.append(el("th", label));
       const thead = el("thead"); thead.append(head); const tbody = el("tbody");
@@ -39,8 +70,16 @@
       table.append(thead, tbody); byId("eq-list").replaceChildren(table);
     } catch (error) { status.textContent = error.message; }
   }
-  window.loadEquipment = load;
-  window.refreshEquipmentRole = () => { if (document.body.dataset.view === "equipment") load(); };
+  let loading = Promise.resolve();
+  window.loadEquipment = nextMode => (loading = load(nextMode));
+  // 管理員切換了自己的設備管理身分：重新讀取自己的資料，更新功能列
+  window.refreshEquipmentRole = async () => {
+    try {
+      const { user } = await api("/api/auth/me"); currentUser = user;
+      byId("rail-equipment-admin").hidden = !user.is_equipment_manager;
+      if (!user.is_equipment_manager && document.body.dataset.view === "equipment-admin") byId("rail-equipment").click();
+    } catch (_) { /* 下次登入會更新 */ }
+  };
 
   function describe(change) {
     return Object.entries(change.changes).map(([key, [before, after]]) => {
@@ -49,6 +88,7 @@
     }).join("；");
   }
   async function openItem(id) {
+    await loading;  // 從通知跳過來時，先等清單與權限讀完
     formStatus.textContent = "";
     current = id ? await api(`/api/equipment/${id}`).catch(error => { byId("eq-status").textContent = error.message; return undefined; }) : null;
     if (current === undefined) return;
@@ -100,10 +140,9 @@
   };
   byId("eq-add").onclick = () => openItem(null);
   for (const button of document.querySelectorAll("#eq-filters [data-status]")) button.onclick = () => {
-    filter = button.dataset.status;
-    document.querySelectorAll("#eq-filters [data-status]").forEach(other => other.classList.toggle("is-active", other === button));
-    load();
+    filter = button.dataset.status; showRecent = false; applyMode(); load();
   };
+  byId("eq-recent").onclick = () => { showRecent = true; applyMode(); load(); };
   byId("eq-search").oninput = () => { clearTimeout(timer); timer = setTimeout(load, 250); };
   byId("eq-location").onchange = load;
   for (const button of document.querySelectorAll("[data-eq-export]")) button.onclick = async () => {

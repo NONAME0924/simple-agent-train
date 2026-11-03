@@ -389,3 +389,7 @@ body:not([data-view="chat"]) :is(#sidebar,#main-column,#workspace-drawer,#panel-
   .notify-panel { left:8px; right:8px; bottom:66px; width:auto; }
   .eq-grid { grid-template-columns:1fr; }
 }
+.eq-recent-list { padding:4px 16px; }
+.eq-recent-item { width:100%; text-align:left; }
+.eq-recent-item:hover { background:var(--hover); }
+.eq-recent-item:last-child { border-bottom:0; }

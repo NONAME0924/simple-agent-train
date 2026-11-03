@@ -21,6 +21,9 @@
     <button id="rail-equipment" class="rail-item" data-view="equipment" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 8h4M7 11h7"/></svg><span class="rail-label">設備</span>
     </button>
+    <button id="rail-equipment-admin" class="rail-item" data-view="equipment-admin" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg><span class="rail-label">設備管理</span>
+    </button>
     <button id="rail-admin" class="rail-item" data-view="admin" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="rail-label">管理</span>
     </button>
@@ -240,11 +243,12 @@
         <button class="pane-nav-item" data-status="normal">正常</button>
         <button class="pane-nav-item" data-status="repair">維修中</button>
         <button class="pane-nav-item" data-status="retired">報廢</button>
+        <button class="pane-nav-item" id="eq-recent" hidden>最近異動</button>
       </nav>
-      <p class="pane-note">所有成員都看得到設備清單；新增與修改由「設備管理」負責，每次變更都會留下紀錄。</p>
+      <p class="pane-note" id="eq-note">所有成員都看得到設備清單；新增與修改由「設備管理」負責，每次變更都會留下紀錄。</p>
     </aside>
     <div class="pane-main">
-      <header class="pane-top eq-top"><h1>實驗室設備</h1>
+      <header class="pane-top eq-top"><h1 id="eq-heading">實驗室設備</h1>
         <input id="eq-search" type="search" placeholder="搜尋名稱、型號、財產編號、位置、保管人" aria-label="搜尋設備" maxlength="50">
         <select id="eq-location" aria-label="存放位置"><option value="">所有位置</option></select>
         <button id="eq-add" class="primary-button" hidden>新增設備</button>
@@ -357,8 +361,6 @@
         <button id="admin-tab-users" class="pane-nav-item is-active">帳號與權限</button>
         <button id="admin-tab-sessions" class="pane-nav-item">所有對話（唯讀）</button>
         <button id="admin-tab-announce" class="pane-nav-item">發送公告</button>
-        <button id="admin-go-fund" class="pane-nav-item">公費總覽（唯讀）</button>
-        <button id="admin-go-logs" class="pane-nav-item">系統日誌</button>
       </nav>
       <p class="pane-note">核准帳號等於授權對方使用 Agent，請只核准實驗室成員。</p>
     </aside>

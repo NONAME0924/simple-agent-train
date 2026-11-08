@@ -393,3 +393,18 @@ body:not([data-view="chat"]) :is(#sidebar,#main-column,#workspace-drawer,#panel-
 .eq-recent-item { width:100%; text-align:left; }
 .eq-recent-item:hover { background:var(--hover); }
 .eq-recent-item:last-child { border-bottom:0; }
+
+/* 午餐輪盤 */
+.lunch-filters label { flex-direction:row !important; align-items:center; gap:6px !important; }
+.lunch-stage { display:flex; flex-direction:column; align-items:center; gap:16px; padding:8px 0 24px; }
+.lunch-wheel-wrap { position:relative; width:min(380px,82vw); aspect-ratio:1; }
+.lunch-wheel-wrap svg { width:100%; height:100%; display:block; transform-origin:50% 50%; filter:drop-shadow(0 6px 16px rgba(20,30,40,.15)); }
+.lunch-pointer { position:absolute; top:-6px; left:50%; z-index:1; transform:translateX(-50%); width:0; height:0; border-left:14px solid transparent; border-right:14px solid transparent; border-top:26px solid var(--danger); filter:drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.lunch-label { fill:#1f2933; font-weight:600; pointer-events:none; }
+.lunch-hub { fill:var(--page); stroke:var(--line); stroke-width:2; }
+.lunch-empty { fill:var(--surface); stroke:var(--line); stroke-width:2; }
+.lunch-empty-text { fill:var(--muted); font-size:16px; }
+.lunch-spin { font-size:18px; padding:10px 40px; border-radius:24px; }
+.lunch-result { min-height:28px; font-size:18px; text-align:center; }
+.lunch-result strong { font-size:22px; color:var(--accent); }
+.lunch-form-row input { flex:1; min-width:120px; }

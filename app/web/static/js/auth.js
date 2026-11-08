@@ -32,6 +32,7 @@ function showLogin(message = "") {
   document.getElementById("btn-finance").hidden = true;
   document.getElementById("rail-admin").hidden = true;
   document.getElementById("rail-equipment").hidden = true;
+  document.getElementById("rail-lunch").hidden = true;
   document.getElementById("rail-equipment-admin").hidden = true;
   document.getElementById("btn-notify").hidden = true;
   window.setAppView?.("chat");
@@ -52,6 +53,7 @@ function applyUser(user) {
   button.setAttribute("aria-label", `帳號：${button.title}`);
   document.getElementById("rail-admin").hidden = user.role !== "admin";
   document.getElementById("rail-equipment").hidden = false;
+  document.getElementById("rail-lunch").hidden = false;
   document.getElementById("rail-equipment-admin").hidden = !user.is_equipment_manager;
   document.getElementById("btn-notify").hidden = false;
   window.refreshNotify?.();
